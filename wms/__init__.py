@@ -3,6 +3,7 @@ from flask_bootstrap import Bootstrap5
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 app = Flask(__name__)
@@ -15,14 +16,20 @@ app.config["BOOTSTRAP_SERVE_LOCAL"] = True
 bootstrap = Bootstrap5(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
-db = SQLAlchemy(app)
+
+
+class Base(DeclarativeBase):
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+
+db = SQLAlchemy(app, model_class=Base)
 
 
 @login_manager.user_loader
-def load_user(user_id: int):
+def load_user(user_id):
     from wms.models import User
 
-    user = User.query.get(user_id)
+    user = db.session.get(User, int(user_id))
     return user
 
 

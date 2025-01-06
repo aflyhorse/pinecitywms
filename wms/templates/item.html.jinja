@@ -1,0 +1,31 @@
+{% extends 'base.html.jinja' %}
+{% import 'macros.jinja' as mc %}
+
+{% block content %}
+<div class="container p-5 my-5 border">
+    {{ mc.render_pagination(pagination, "item") }}
+    <table class="table table-hover table-bordered">
+        <thead>
+            <tr>
+                <th>物品</th>
+                <th>品牌</th>
+                <th>规格</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in pagination.items %}
+            <tr>
+                <td rowspan={{ item.skus | length }}>{{ item.name }}</td>
+                {% for itemsku in item.skus %}
+                <td>{{ itemsku.brand }}</td>
+                <td>{{ itemsku.spec }}</td>
+            </tr>
+            <tr>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {{ mc.render_pagination(pagination, "item") }}
+</div>
+{% endblock %}
