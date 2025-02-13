@@ -8,3 +8,10 @@ class LoginForm(FlaskForm):
     password = PasswordField("密码", validators=[DataRequired(), Length(1, 40)])
     remember = BooleanField("保持登录", default="checked")
     submit = SubmitField("登录")
+
+
+class ItemSearchForm(FlaskForm):
+    itemname = StringField("物品名称", render_kw={"placeholder": "物品名称"})
+    itembrand = StringField("品牌", render_kw={"placeholder": "品牌"})
+    itemspec = StringField("规格", render_kw={"placeholder": "规格"})
+    submit = SubmitField("搜索")

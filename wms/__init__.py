@@ -11,7 +11,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////" + os.path.join(
     os.path.dirname(app.root_path), os.getenv("DATABASE_FILE", "data.db")
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev")
+app.secret_key = os.getenv("SECRET_KEY", "dev")
 app.config["BOOTSTRAP_SERVE_LOCAL"] = True
 bootstrap = Bootstrap5(app)
 login_manager = LoginManager(app)

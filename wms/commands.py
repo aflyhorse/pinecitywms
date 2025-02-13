@@ -56,7 +56,7 @@ def forge():
     for i in range(1, 300):
         item = Item(name="占位产品" + str(i))
         db.session.add(item)
-        itemSKU = ItemSKU(item=item, brand="假冒伪劣", spec="产品" + str(i))
+        itemSKU = ItemSKU(item=item, brand="假冒伪劣", spec=f"产品{i}")
         db.session.add(itemSKU)
     db.session.commit()
     click.echo("Data forging done.")
