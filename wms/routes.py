@@ -46,17 +46,26 @@ def logout():
 @login_required
 def item():
     if current_user.is_admin:
-        page = 1 if request.args.get("page") is None else int(request.args.get("page"))
         form = ItemSearchForm()
-
         query = select(ItemSKU)
+
         if form.validate_on_submit():
-            # Store search parameters in session
+            # Store search parameters in session and start from page 1
             session["item_search"] = {
                 "name": form.name.data,
                 "brand": form.brand.data,
                 "spec": form.spec.data,
             }
+            # Redirect to GET request with page 1
+            return redirect(
+                url_for(
+                    "item",
+                    name=form.name.data,
+                    brand=form.brand.data,
+                    spec=form.spec.data,
+                    page=1,
+                )
+            )
         elif request.method == "GET":
             # Restore form data from session or request args
             saved_search = session.get("item_search", {})
@@ -72,6 +81,7 @@ def item():
         if form.spec.data:
             query = query.filter(ItemSKU.spec.ilike(f"%{form.spec.data}%"))
 
+        page = 1 if request.args.get("page") is None else int(request.args.get("page"))
         items_pag = db.paginate(query, page=page)
         return render_template(
             "item.html.jinja", pagination=items_pag, itemSearchForm=form
