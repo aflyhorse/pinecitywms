@@ -47,7 +47,7 @@ def logout():
 def item():
     if current_user.is_admin:
         form = ItemSearchForm()
-        query = select(ItemSKU)
+        query = select(ItemSKU).join(Item)  # Always join with Item for sorting
 
         if form.validate_on_submit():
             # Store search parameters in session and start from page 1
@@ -75,11 +75,14 @@ def item():
 
         # Apply filters if there's search data
         if form.name.data:
-            query = query.join(Item).filter(Item.name.ilike(f"%{form.name.data}%"))
+            query = query.filter(Item.name.ilike(f"%{form.name.data}%"))
         if form.brand.data:
             query = query.filter(ItemSKU.brand.ilike(f"%{form.brand.data}%"))
         if form.spec.data:
             query = query.filter(ItemSKU.spec.ilike(f"%{form.spec.data}%"))
+
+        # Add ordering
+        query = query.order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
 
         page = 1 if request.args.get("page") is None else int(request.args.get("page"))
         items_pag = db.paginate(query, page=page)

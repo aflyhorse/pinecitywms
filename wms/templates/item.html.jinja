@@ -27,12 +27,23 @@
             </tr>
         </thead>
         <tbody>
+            {% set ns = namespace(prev_item=none, rowspan=0) %}
             {% for itemsku in pagination.items %}
+            {% if ns.prev_item != itemsku.item.name %}
+            {# Count rowspan for current item #}
+            {% set ns.rowspan = pagination.items|selectattr('item.name', 'equalto', itemsku.item.name)|list|length %}
+            {% set ns.prev_item = itemsku.item.name %}
             <tr>
-                <td>{{ itemsku.item.name }}</td>
+                <td rowspan="{{ ns.rowspan }}">{{ itemsku.item.name }}</td>
                 <td>{{ itemsku.brand }}</td>
                 <td>{{ itemsku.spec }}</td>
             </tr>
+            {% else %}
+            <tr>
+                <td>{{ itemsku.brand }}</td>
+                <td>{{ itemsku.spec }}</td>
+            </tr>
+            {% endif %}
             {% endfor %}
         </tbody>
     </table>
