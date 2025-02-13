@@ -1,0 +1,47 @@
+{% extends 'base.html.jinja' %}
+{% from 'bootstrap5/form.html' import render_field %}
+
+{% block content %}
+<div class="container p-5 my-5 border">
+    <h2>添加物品</h2>
+    <form method="post">
+        {{ form.csrf_token }}
+        {{ render_field(form.item_choice) }}
+        <div id="existing-item-div" class="mb-3">
+            {{ render_field(form.existing_item) }}
+            <datalist id="existing-items">
+                {% for item in items %}
+                <option value="{{ item.name }}">
+                    {% endfor %}
+            </datalist>
+        </div>
+        <div id="new-item-div" class="mb-3" style="display: none;">
+            {{ render_field(form.new_item_name) }}
+        </div>
+        {{ render_field(form.brand) }}
+        {{ render_field(form.spec) }}
+        {{ render_field(form.submit) }}
+    </form>
+    <a href="{{ url_for('item') }}" class="btn btn-secondary">返回</a>
+</div>
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const itemChoice = document.getElementsByName('item_choice');
+        const existingDiv = document.getElementById('existing-item-div');
+        const newDiv = document.getElementById('new-item-div');
+
+        function updateVisibility() {
+            const selected = document.querySelector('input[name="item_choice"]:checked').value;
+            existingDiv.style.display = selected === 'existing' ? 'block' : 'none';
+            newDiv.style.display = selected === 'new' ? 'block' : 'none';
+        }
+
+        itemChoice.forEach(radio => radio.addEventListener('change', updateVisibility));
+        updateVisibility();
+    });
+</script>
+{% endblock %}
+{% endblock %}

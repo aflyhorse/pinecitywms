@@ -1,6 +1,6 @@
 from wms import app, db
 from wms.models import User, Item, ItemSKU
-from wms.forms import LoginForm, ItemSearchForm
+from wms.forms import LoginForm, ItemSearchForm, ItemCreateForm
 from flask import render_template, request, url_for, redirect, flash, session
 from flask_login import login_required, login_user, logout_user, current_user
 from sqlalchemy import select
@@ -89,3 +89,42 @@ def item():
     else:
         flash("Unauthorized Access.")
         return redirect(url_for("index"))
+
+
+@app.route("/item/create", methods=["GET", "POST"])
+@login_required
+def item_create():
+    if not current_user.is_admin:
+        flash("Unauthorized Access.")
+        return redirect(url_for("index"))
+
+    form = ItemCreateForm()
+    # Get items for datalist
+    items = db.session.execute(select(Item)).scalars()
+
+    if form.validate_on_submit():
+        if form.item_choice.data == "existing":
+            # Find item by name
+            item = db.session.execute(
+                select(Item).filter_by(name=form.existing_item.data)
+            ).scalar_one_or_none()
+            if not item:
+                flash("未找到指定物品。", "danger")
+                return render_template("item_create.html.jinja", form=form, items=items)
+            item_id = item.id
+        else:
+            # Create new item
+            item = Item(name=form.new_item_name.data)
+            db.session.add(item)
+            db.session.flush()
+            item_id = item.id
+
+        # Create new SKU
+        sku = ItemSKU(item_id=item_id, brand=form.brand.data, spec=form.spec.data)
+        db.session.add(sku)
+        db.session.commit()
+
+        flash("物品添加成功。", "success")
+        return redirect(url_for("item"))
+
+    return render_template("item_create.html.jinja", form=form, items=items)
