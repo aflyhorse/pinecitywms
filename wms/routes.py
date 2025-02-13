@@ -46,28 +46,35 @@ def logout():
 @login_required
 def item():
     if current_user.is_admin:
+        page = 1 if request.args.get("page") is None else int(request.args.get("page"))
         form = ItemSearchForm()
-        query = select(ItemSKU).join(Item)
-        page = 1
-        if request.args.get("page") is not None:
-            page = int(request.args.get("page"))
-        if form.is_submitted():
-            session["itemname"] = form.itemname.data
-            session["itembrand"] = form.itembrand.data
-            session["itemspec"] = form.itemspec.data
-            page = 1
-        if session.get("itemname"):
-            query = query.where(Item.name.ilike(f"%{session.get('itemname')}%"))
-            form.itemname.data = session.get("itemname")
-        if session.get("itembrand"):
-            query = query.where(ItemSKU.brand.ilike(f"%{session.get('itembrand')}%"))
-            form.itembrand.data = session.get("itembrand")
-        if session.get("itemspec"):
-            query = query.where(ItemSKU.spec.ilike(f"%{session.get('itemspec')}%"))
-            form.itemspec.data = session.get("itemspec")
-        itemskus_pag = db.paginate(query, page=page, per_page=15)
+
+        query = select(ItemSKU)
+        if form.validate_on_submit():
+            # Store search parameters in session
+            session["item_search"] = {
+                "name": form.name.data,
+                "brand": form.brand.data,
+                "spec": form.spec.data,
+            }
+        elif request.method == "GET":
+            # Restore form data from session or request args
+            saved_search = session.get("item_search", {})
+            form.name.data = request.args.get("name", saved_search.get("name", ""))
+            form.brand.data = request.args.get("brand", saved_search.get("brand", ""))
+            form.spec.data = request.args.get("spec", saved_search.get("spec", ""))
+
+        # Apply filters if there's search data
+        if form.name.data:
+            query = query.join(Item).filter(Item.name.ilike(f"%{form.name.data}%"))
+        if form.brand.data:
+            query = query.filter(ItemSKU.brand.ilike(f"%{form.brand.data}%"))
+        if form.spec.data:
+            query = query.filter(ItemSKU.spec.ilike(f"%{form.spec.data}%"))
+
+        items_pag = db.paginate(query, page=page)
         return render_template(
-            "item.html.jinja", itemSearchForm=form, pagination=itemskus_pag
+            "item.html.jinja", pagination=items_pag, itemSearchForm=form
         )
     else:
         flash("Unauthorized Access.")

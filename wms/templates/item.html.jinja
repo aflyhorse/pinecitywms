@@ -8,7 +8,11 @@
         {{ render_form(itemSearchForm, form_type="inline") }}
         共搜索到 {{pagination.total}} 项内容。
     </div>
-    {{ render_pagination(pagination) }}
+    {{ render_pagination(pagination,
+    name=itemSearchForm.name.data,
+    brand=itemSearchForm.brand.data,
+    spec=itemSearchForm.spec.data
+    ) }}
     <table class="table table-hover table-bordered">
         <thead>
             <tr>
@@ -27,6 +31,10 @@
             {% endfor %}
         </tbody>
     </table>
-    {{ render_pagination(pagination) }}
+    {{ render_pagination(pagination,
+    name=itemSearchForm.name.data,
+    brand=itemSearchForm.brand.data,
+    spec=itemSearchForm.spec.data
+    ) }}
 </div>
 {% endblock %}
