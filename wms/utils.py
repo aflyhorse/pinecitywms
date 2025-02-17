@@ -10,4 +10,5 @@ def admin_required(f):
             flash("Unauthorized Access.")
             return redirect(url_for("index"))
         return f(*args, **kwargs)
+
     return decorated_function

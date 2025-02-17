@@ -6,7 +6,7 @@ from wms import app
 from . import auth, item, stock  # noqa: F401
 
 
-__all__ = ['auth', 'item', 'stock']
+__all__ = ["auth", "item", "stock"]
 
 
 @app.route("/")

@@ -22,7 +22,7 @@ def test_stockin(auth_client, test_warehouse):
     # Get test item SKU
     with app.app_context():
         sku = ItemSKU.query.first()
-        
+
     # Test stockin submission
     response = auth_client.post(
         "/stockin",
@@ -31,12 +31,14 @@ def test_stockin(auth_client, test_warehouse):
             "warehouse": test_warehouse,
             "items-0-item_id": str(sku.id),
             "items-0-quantity": "10",
-            "items-0-price": "100.00"
+            "items-0-price": "100.00",
         },
-        follow_redirects=True
+        follow_redirects=True,
     )
     assert response.status_code == 200
-    assert b"\xe5\x85\xa5\xe5\xba\x93\xe6\x88\x90\xe5\x8a\x9f" in response.data  # "入库成功" in UTF-8
+    assert (
+        b"\xe5\x85\xa5\xe5\xba\x93\xe6\x88\x90\xe5\x8a\x9f" in response.data
+    )  # "入库成功" in UTF-8
 
     # Verify the warehouse item count
     with app.app_context():
@@ -55,14 +57,13 @@ def test_stockin_validation(auth_client, test_warehouse):
             "warehouse": test_warehouse,
             "items-0-item_id": "99999",  # Non-existent ID
             "items-0-quantity": "10",
-            "items-0-price": "100.00"
+            "items-0-price": "100.00",
         },
-        follow_redirects=True
+        follow_redirects=True,
     )
     assert response.status_code == 200
     assert (
-        b"\xe6\x97\xa0\xe6\x95\x88\xe7\x9a\x84\xe7\x89\xa9\xe5\x93\x81"
-        in response.data
+        b"\xe6\x97\xa0\xe6\x95\x88\xe7\x9a\x84\xe7\x89\xa9\xe5\x93\x81" in response.data
     )  # "无效的物品" in UTF-8
 
 
