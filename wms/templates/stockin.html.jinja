@@ -1,0 +1,86 @@
+{% extends "base.html.jinja" %}
+{% from 'bootstrap5/form.html' import render_field %}
+
+{% block content %}
+<div class="container p-5 my-5 border">
+    <h2>入库</h2>
+    <form method="post">
+        {{ form.csrf_token }}
+        {{ render_field(form.refcode) }}
+        {{ render_field(form.warehouse) }}
+        <datalist id="item-ids">
+            {% for id, name in items %}
+            <option value="{{ name }}">{{ name }}</option>
+            {% endfor %}
+        </datalist>
+        <div id="items">
+            {% for item_form in form.items %}
+            <div class="item-form d-flex align-items-center">
+                <div class="flex-grow-1">
+                    {{ render_field(item_form.item_id, placeholder="输入或选择物品") }}
+                </div>
+                <div class="flex-grow-1">
+                    {{ render_field(item_form.quantity) }}
+                </div>
+                <div class="flex-grow-1">
+                    {{ render_field(item_form.price) }}
+                </div>
+                <button type="button" class="btn btn-danger remove-item">x</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn-primary" id="add-item">添加物品</button>
+        {{ render_field(form.submit) }}
+    </form>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const addItemButton = document.getElementById('add-item');
+        const itemsDiv = document.getElementById('items');
+
+        // Handle adding new item
+        addItemButton.addEventListener('click', function () {
+            const template = document.querySelector('.item-form');
+            if (template) {
+                const clone = template.cloneNode(true);
+                clone.querySelectorAll('input').forEach(input => input.value = '');
+                itemsDiv.appendChild(clone);
+            }
+        });
+
+        // Handle removing item
+        itemsDiv.addEventListener('click', function (event) {
+            if (event.target.classList.contains('remove-item')) {
+                const itemForms = document.querySelectorAll('.item-form');
+                if (itemForms.length > 1) {
+                    event.target.closest('.item-form').remove();
+                }
+            }
+        });
+
+        // Create a mapping of item names to IDs
+        const itemMapping = {};
+        {% for id, name in items %}
+        itemMapping['{{ name }}'] = {{ id }};
+        {% endfor %}
+
+        // Store selected item's ID in the form before submission
+        document.querySelector('form').addEventListener('submit', function (event) {
+            event.preventDefault();
+            const itemInputs = document.querySelectorAll('[name$="item_id"]');
+
+            for (let input of itemInputs) {
+                const id = itemMapping[input.value];
+                if (id) {
+                    input.value = id;
+                }
+            }
+            event.target.submit();
+        });
+    });
+</script>
+{% endblock scripts %}

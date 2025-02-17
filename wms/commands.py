@@ -15,7 +15,7 @@ def initdb(drop):
     for name in usernames:
         user = User(username=name[0], nickname=name[1], is_admin=True)
         user.set_password(name[0])
-        warehouse = Warehouse(name=f"{name[0]}仓库", owner=user)
+        warehouse = Warehouse(name=f"{name[1]}仓库", owner=user)
         db.session.add(user)
         db.session.add(warehouse)
 
@@ -28,7 +28,7 @@ def initdb(drop):
     for name in usernames:
         user = User(username=name[0], nickname=name[1], is_admin=False)
         user.set_password(name[0])
-        warehouse = Warehouse(name=f"{name[0]}仓库", owner=user)
+        warehouse = Warehouse(name=f"{name[1]}仓库", owner=user)
         db.session.add(user)
         db.session.add(warehouse)
 

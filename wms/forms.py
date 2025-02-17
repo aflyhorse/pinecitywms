@@ -5,6 +5,11 @@ from wtforms import (
     BooleanField,
     SubmitField,
     RadioField,
+    SelectField,
+    IntegerField,
+    DecimalField,
+    FieldList,
+    FormField,
 )
 from wtforms.validators import DataRequired, Length
 
@@ -49,3 +54,18 @@ class ItemCreateForm(FlaskForm):
             self.new_item_name.errors.append("请输入物品名称")
             return False
         return True
+
+
+class StockInItemForm(FlaskForm):
+    item_id = StringField(
+        "物品", validators=[DataRequired()], render_kw={"list": "item-ids"}
+    )
+    quantity = IntegerField("数量", validators=[DataRequired()])
+    price = DecimalField("价格", validators=[DataRequired()])
+
+
+class StockInForm(FlaskForm):
+    refcode = StringField("入库单号", validators=[DataRequired(), Length(1, 30)])
+    warehouse = SelectField("库房", coerce=int, validators=[DataRequired()])
+    items = FieldList(FormField(StockInItemForm), min_entries=1)
+    submit = SubmitField("入库")

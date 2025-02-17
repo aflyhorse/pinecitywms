@@ -1,4 +1,4 @@
-{% extends 'base.html.jinja' %}
+{% extends "base.html.jinja" %}
 {% from 'bootstrap5/form.html' import render_field %}
 
 {% block content %}
@@ -11,11 +11,11 @@
             {{ render_field(form.existing_item) }}
             <datalist id="existing-items">
                 {% for item in items %}
-                <option value="{{ item.name }}">
-                    {% endfor %}
+                <option value="{{ item.name }}"></option>
+                {% endfor %}
             </datalist>
         </div>
-        <div id="new-item-div" class="mb-3" style="display: none;">
+        <div id="new-item-div" class="mb-3 d-none">
             {{ render_field(form.new_item_name) }}
         </div>
         {{ render_field(form.brand) }}
@@ -43,5 +43,5 @@
         updateVisibility();
     });
 </script>
-{% endblock %}
-{% endblock %}
+{% endblock scripts %}
+{% endblock content %}

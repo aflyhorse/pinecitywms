@@ -1,4 +1,4 @@
-{% extends 'base.html.jinja' %}
+{% extends "base.html.jinja" %}
 {% from 'bootstrap5/form.html' import render_form %}
 {% from 'bootstrap5/pagination.html' import render_pagination %}
 
@@ -7,7 +7,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             {{ render_form(itemSearchForm, form_type="inline") }}
-            共搜索到 {{pagination.total}} 项内容。
+            共搜索到 {{ pagination.total }} 项内容。
         </div>
         <div>
             <a href="{{ url_for('item_create') }}" class="btn btn-primary">添加物品或具体型号</a>
@@ -53,4 +53,4 @@
     spec=itemSearchForm.spec.data
     ) }}
 </div>
-{% endblock %}
+{% endblock content %}

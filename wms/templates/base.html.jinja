@@ -8,11 +8,13 @@
     {% block head %}
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="青松城设备科仓库管理系统 - 用于管理设备和物品的仓库管理系统">
+    <meta name="keywords" content="仓库管理,设备管理,物品管理,青松城,设备科">
     {% block styles %}
     {{ bootstrap.load_css() }}
-    {% endblock %}
+    {% endblock styles %}
     <title>青松城设备科仓库管理系统</title>
-    {% endblock %}
+    {% endblock head %}
 </head>
 
 <body>
@@ -25,21 +27,22 @@
                     {% if current_user.is_authenticated %}
                     {% if user.is_admin %}
                     {{ render_nav_item("item", "物品管理") }}
+                    {{ render_nav_item("stockin", "入库") }}
                     {% endif %}
                 </ul>
             </div>
             <div class="d-flex justify-content-end"></div>
             <ul class="navbar-nav">
-                <li class="nav-item"><a class="nav-link">你好，{{user.nickname}}</a></li>
+                <li class="nav-item"><a class="nav-link">你好，{{ user.nickname }} </a></li>
                 {{ render_nav_item("logout", "登出") }}
             </ul>
             {% endif %}
         </div>
     </nav>
-    {% block content %}{% endblock %}
+    {% block content %}{% endblock content %}
     {% block scripts %}
     {{ bootstrap.load_js() }}
-    {% endblock %}
+    {% endblock scripts %}
 </body>
 
 </html>
