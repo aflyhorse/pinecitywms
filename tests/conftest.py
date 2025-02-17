@@ -22,9 +22,7 @@ def client():
 @pytest.fixture
 def test_user(client):
     with app.app_context():
-        user = User(
-            username="testadmin", nickname="Test Admin", is_admin=True, active=True
-        )
+        user = User(username="testadmin", nickname="Test Admin", is_admin=True)
         user.set_password("password123")
         db.session.add(user)
         db.session.commit()
@@ -34,9 +32,7 @@ def test_user(client):
 @pytest.fixture
 def regular_user(client):
     with app.app_context():
-        user = User(
-            username="testuser", nickname="Test User", is_admin=False, active=True
-        )
+        user = User(username="testuser", nickname="Test User", is_admin=False)
         user.set_password("password123")
         db.session.add(user)
         db.session.commit()
