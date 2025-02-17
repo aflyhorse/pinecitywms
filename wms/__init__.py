@@ -31,4 +31,4 @@ def inject_user():
     return dict(user=current_user)
 
 
-from wms import routes, commands  # noqa
+from wms import routes, commands  # noqa : F401

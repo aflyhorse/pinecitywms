@@ -42,12 +42,13 @@ def regular_user(client):
 @pytest.fixture
 def test_item(client):
     with app.app_context():
-        item = Item(name=f"Test Item {uuid.uuid4()}")
+        item_name = f"Test Item {uuid.uuid4()}"
+        item = Item(name=item_name)
         db.session.add(item)
         sku = ItemSKU(item=item, brand="Test Brand", spec="Test Spec")
         db.session.add(sku)
         db.session.commit()
-        return item
+        return item_name
 
 
 @pytest.fixture

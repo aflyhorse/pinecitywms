@@ -7,7 +7,7 @@
     <form method="post">
         {{ form.csrf_token }}
         {{ render_field(form.item_choice) }}
-        <div id="existing-item-div" class="mb-3">
+        <div id="existing-item-div" class="mb-3 d-none">
             {{ render_field(form.existing_item) }}
             <datalist id="existing-items">
                 {% for item in items %}
@@ -15,7 +15,7 @@
                 {% endfor %}
             </datalist>
         </div>
-        <div id="new-item-div" class="mb-3 d-none">
+        <div id="new-item-div" class="mb-3">
             {{ render_field(form.new_item_name) }}
         </div>
         {{ render_field(form.brand) }}
@@ -35,8 +35,8 @@
 
         function updateVisibility() {
             const selected = document.querySelector('input[name="item_choice"]:checked').value;
-            existingDiv.style.display = selected === 'existing' ? 'block' : 'none';
-            newDiv.style.display = selected === 'new' ? 'block' : 'none';
+            existingDiv.classList.toggle('d-none', selected !== 'existing');
+            newDiv.classList.toggle('d-none', selected !== 'new');
         }
 
         itemChoice.forEach(radio => radio.addEventListener('change', updateVisibility));

@@ -63,23 +63,63 @@
         });
 
         // Create a mapping of item names to IDs
-        const itemMapping = {};
+        const itemNameMapping = {};
         {% for id, name in items %}
-        itemMapping['{{ name }}'] = {{ id }};
+        itemNameMapping['{{ name }}'] = {{ id }};
         {% endfor %}
 
+        // Store the original items array for searching
+        const items = [
+            {% for id, name in items %}
+            { id: {{ id }}, name: '{{ name }}' },
+            {% endfor %}
+        ];
+
+        // Handle item search and selection
+        itemsDiv.addEventListener('input', function(event) {
+            const input = event.target;
+            if (input.name && input.name.endsWith('item_id')) {
+                // If exact match found, keep it
+                if (itemNameMapping[input.value]) {
+                    return;
+                }
+                
+                // Update datalist options based on input
+                const datalist = document.getElementById('item-ids');
+                datalist.innerHTML = '';
+                
+                const searchTerm = input.value.toLowerCase();
+                const matches = items.filter(item => 
+                    item.name.toLowerCase().includes(searchTerm)
+                );
+                
+                matches.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.name;
+                    datalist.appendChild(option);
+                });
+            }
+        });
+
         // Store selected item's ID in the form before submission
-        document.querySelector('form').addEventListener('submit', function (event) {
-            event.preventDefault();
+        const form = document.querySelector('form');
+        form.addEventListener('submit', function (event) {
             const itemInputs = document.querySelectorAll('[name$="item_id"]');
+            let hasError = false;
 
             for (let input of itemInputs) {
-                const id = itemMapping[input.value];
+                const id = itemNameMapping[input.value];
                 if (id) {
                     input.value = id;
+                } else if (input.value) {
+                    hasError = true;
                 }
             }
-            event.target.submit();
+            
+            if (hasError) {
+                event.preventDefault();
+                alert('请从列表中选择有效的物品');
+            }
         });
     });
 </script>
