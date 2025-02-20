@@ -1,20 +1,22 @@
 from wms import db
 from flask_login import UserMixin
 from sqlalchemy import ForeignKey, Enum
+from sqlalchemy.types import String, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 from typing import List
 from datetime import datetime
+from decimal import Decimal
 import enum
 
 
 class User(db.Model, UserMixin):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(
-        db.String(20), unique=True, nullable=False, index=True
+        String(20), unique=True, nullable=False, index=True
     )
-    nickname: Mapped[str] = mapped_column(db.String(20), unique=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(db.String(162))
+    nickname: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(162))
     is_admin: Mapped[bool]
     receipts: Mapped[List["Receipt"]] = relationship(back_populates="operator")
     warehouse: Mapped["Warehouse"] = relationship(back_populates="owner", uselist=False)
@@ -29,14 +31,14 @@ class User(db.Model, UserMixin):
 class Item(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(
-        db.String(30), unique=True, nullable=False, index=True
+        String(30), unique=True, nullable=False, index=True
     )
     skus: Mapped[List["ItemSKU"]] = relationship(back_populates="item")
 
 
 class Warehouse(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(db.String(50), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     is_public: Mapped[bool] = mapped_column(default=False)
     owner_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=True)
     owner: Mapped[User] = relationship(back_populates="warehouse", uselist=False)
@@ -50,8 +52,8 @@ class ItemSKU(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     item_id: Mapped[int] = mapped_column(ForeignKey("item.id"))
     item: Mapped[Item] = relationship(back_populates="skus")
-    brand: Mapped[str] = mapped_column(db.String(30))
-    spec: Mapped[str] = mapped_column(db.String(50))
+    brand: Mapped[str] = mapped_column(String(30))
+    spec: Mapped[str] = mapped_column(String(50))
     trasanctions: Mapped[List["Transaction"]] = relationship(back_populates="itemSKU")
     warehouses: Mapped[List["WarehouseItemSKU"]] = relationship(
         "WarehouseItemSKU", back_populates="itemSKU"
@@ -65,7 +67,7 @@ class WarehouseItemSKU(db.Model):
     )
     itemSKU_id: Mapped[int] = mapped_column(ForeignKey("item_sku.id"), primary_key=True)
     count: Mapped[int] = mapped_column(db.Integer, default=0, nullable=False)
-    average_price: Mapped[float] = mapped_column(db.Float, default=0.0, nullable=False)
+    average_price: Mapped[float] = mapped_column(default=0, nullable=False)
     warehouse: Mapped[Warehouse] = relationship("Warehouse", back_populates="item_skus")
     itemSKU: Mapped[ItemSKU] = relationship("ItemSKU", back_populates="warehouses")
 
@@ -75,7 +77,7 @@ class Transaction(db.Model):
     itemSKU_id: Mapped[int] = mapped_column(ForeignKey("item_sku.id"))
     itemSKU: Mapped[ItemSKU] = relationship(back_populates="trasanctions")
     count: Mapped[int]
-    price: Mapped[float]
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     receipt_id: Mapped[int] = mapped_column(ForeignKey("receipt.id"), nullable=False)
     receipt: Mapped["Receipt"] = relationship(back_populates="transactions")
 
@@ -88,7 +90,7 @@ class ReceiptType(enum.Enum):
 
 class Receipt(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    refcode: Mapped[str] = mapped_column(db.String(30))
+    refcode: Mapped[str] = mapped_column(String(30))
     type: Mapped[ReceiptType] = mapped_column(
         Enum(ReceiptType), default=ReceiptType.STOCKOUT, nullable=False
     )

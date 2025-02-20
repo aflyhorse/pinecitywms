@@ -11,12 +11,11 @@ from wms.forms import StockInForm
 @admin_required
 def stockin():
     form = StockInForm()
-    form.warehouse.choices = [(w.id, w.name) for w in Warehouse.query.all()]
-
     # Get all items with their display text
     skus = db.session.query(ItemSKU).join(Item).all()
     items = [(sku.id, f"{sku.item.name} - {sku.brand} - {sku.spec}") for sku in skus]
     items_dict = dict(items)
+    form.warehouse.choices = [(w.id, w.name) for w in Warehouse.query.all()]
 
     if form.validate_on_submit():
         receipt = Receipt(

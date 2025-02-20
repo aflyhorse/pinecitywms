@@ -23,6 +23,11 @@ def test_item_management(auth_client):
 
 
 def test_item_creation(auth_client):
+    # Test GET request to item creation page
+    response = auth_client.get("/item/create")
+    assert response.status_code == 200
+    assert b"form" in response.data
+
     # Test item creation with new item
     response = auth_client.post(
         "/item/create",

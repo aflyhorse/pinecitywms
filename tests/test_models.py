@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from wms.models import (
     User,
     Item,
@@ -108,7 +109,7 @@ def test_receipt_model(client, test_user):
         assert receipt.warehouse == warehouse
         assert receipt.type == ReceiptType.STOCKIN
         assert transaction in receipt.transactions
-        assert receipt.sum == 50.0
+        assert receipt.sum == 5 * 10
         assert warehouse.item_skus[0].count == 5
 
         receipt = Receipt(
@@ -117,14 +118,17 @@ def test_receipt_model(client, test_user):
             warehouse=warehouse,
             type=ReceiptType.STOCKIN,
         )
-        transaction = Transaction(itemSKU=sku, count=5, price=20, receipt=receipt)
+        transaction = Transaction(itemSKU=sku, count=10, price=20, receipt=receipt)
         db.session.add(transaction)
         db.session.add(receipt)
         db.session.flush()
         receipt.update_warehouse_item_skus()
         db.session.flush()
-        assert warehouse.item_skus[0].count == 10
-        assert warehouse.item_skus[0].average_price == 15.0
+        assert warehouse.item_skus[0].count == 5 + 10
+        newaverage = Decimal(float(5 * 10 + 10 * 20) / (5 + 10)).quantize(
+            Decimal("0.01")
+        )
+        assert warehouse.item_skus[0].average_price == newaverage
 
         receipt = Receipt(
             operator=test_user,
@@ -143,5 +147,5 @@ def test_receipt_model(client, test_user):
         db.session.flush()
         receipt.update_warehouse_item_skus()
         db.session.flush()
-        assert warehouse.item_skus[0].count == 8
-        assert warehouse.item_skus[0].average_price == 15.0
+        assert warehouse.item_skus[0].count == 5 + 10 - 2
+        assert warehouse.item_skus[0].average_price == newaverage

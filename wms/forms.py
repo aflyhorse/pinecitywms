@@ -11,7 +11,7 @@ from wtforms import (
     FieldList,
     FormField,
 )
-from wtforms.validators import DataRequired, Length
+from wtforms.validators import DataRequired, InputRequired, Length
 
 
 class LoginForm(FlaskForm):
@@ -60,12 +60,12 @@ class StockInItemForm(FlaskForm):
     item_id = StringField(
         "物品", validators=[DataRequired()], render_kw={"list": "item-ids"}
     )
-    quantity = IntegerField("数量", validators=[DataRequired()])
-    price = DecimalField("价格", validators=[DataRequired()])
+    quantity = IntegerField("数量", validators=[InputRequired()])
+    price = DecimalField("价格", validators=[InputRequired()])
 
 
 class StockInForm(FlaskForm):
     refcode = StringField("入库单号", validators=[DataRequired(), Length(1, 30)])
-    warehouse = SelectField("库房", coerce=int, validators=[DataRequired()])
+    warehouse = SelectField("库房", coerce=int, validators=[InputRequired()])
     items = FieldList(FormField(StockInItemForm), min_entries=1)
     submit = SubmitField("入库")
