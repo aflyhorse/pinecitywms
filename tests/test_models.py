@@ -1,5 +1,4 @@
 import uuid
-from decimal import Decimal
 from wms.models import (
     User,
     Item,

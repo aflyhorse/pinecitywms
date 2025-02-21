@@ -52,7 +52,7 @@ def forge():
     db.session.add(itemSKU)
     receipt = Receipt(
         operator=user,
-        refcode="20250214",
+        refcode="20250214-1",
         warehouse=user.warehouse,
         type=ReceiptType.STOCKIN,
     )
@@ -66,14 +66,26 @@ def forge():
     db.session.commit()
 
     # add display test item
+    receipt = Receipt(
+        operator=user,
+        refcode="20250214-2",
+        warehouse=user.warehouse,
+        type=ReceiptType.STOCKIN,
+    )
     item = Item(name="占位产品1")
+    db.session.add(item)
     for i in range(1, 20):
         itemSKU = ItemSKU(item=item, brand="占位", spec=f"规格{i}")
         db.session.add(itemSKU)
+        db.session.add(Transaction(itemSKU=itemSKU, count=i, price=i, receipt=receipt))
     for i in range(2, 50):
         item = Item(name=f"占位产品{i}")
         db.session.add(item)
-        itemSKU = ItemSKU(item=item, brand="假冒伪劣", spec=f"产品{i}")
+        itemSKU = ItemSKU(item=item, brand="假冒伪劣", spec=f"规格{i}")
         db.session.add(itemSKU)
+        db.session.add(Transaction(itemSKU=itemSKU, count=i, price=i, receipt=receipt))
+    db.session.add(receipt)
+    db.session.commit()
+    receipt.update_warehouse_item_skus()
     db.session.commit()
     click.echo("Data forging done.")

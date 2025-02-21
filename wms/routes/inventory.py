@@ -1,4 +1,4 @@
-from flask import render_template, url_for, redirect, flash, request
+from flask import render_template, url_for, redirect, flash, request, session
 from flask_login import login_required, current_user
 from wms import app, db
 from wms.utils import admin_required
@@ -11,7 +11,7 @@ from wms.models import (
     ReceiptType,
     WarehouseItemSKU,
 )
-from wms.forms import StockInForm
+from wms.forms import StockInForm, ItemSearchForm
 from sqlalchemy import and_
 
 
@@ -40,18 +40,59 @@ def inventory():
     page = request.args.get("page", 1, type=int)
     per_page = 20
 
-    # Get items with non-zero count from selected warehouse
+    # Initialize search form
+    form = ItemSearchForm()
     warehouse_items = {}
     pagination = None
 
     if selected_warehouse:
-        query = db.session.query(WarehouseItemSKU).filter(
-            and_(
-                WarehouseItemSKU.warehouse_id == selected_warehouse.id,
-                WarehouseItemSKU.count > 0,
+        query = (
+            db.session.query(WarehouseItemSKU)
+            .join(ItemSKU)
+            .join(Item)
+            .filter(
+                and_(
+                    WarehouseItemSKU.warehouse_id == selected_warehouse.id,
+                    WarehouseItemSKU.count > 0,
+                )
             )
         )
 
+        if form.validate_on_submit():
+            # Store search parameters in session and start from page 1
+            session["inventory_search"] = {
+                "name": form.name.data,
+                "brand": form.brand.data,
+                "spec": form.spec.data,
+            }
+            # Redirect to GET request with page 1
+            return redirect(
+                url_for(
+                    "inventory",
+                    warehouse=selected_warehouse.id,
+                    name=form.name.data,
+                    brand=form.brand.data,
+                    spec=form.spec.data,
+                    page=1,
+                )
+            )
+        elif request.method == "GET":
+            # Restore form data from session or request args
+            saved_search = session.get("inventory_search", {})
+            form.name.data = request.args.get("name", saved_search.get("name", ""))
+            form.brand.data = request.args.get("brand", saved_search.get("brand", ""))
+            form.spec.data = request.args.get("spec", saved_search.get("spec", ""))
+
+            # Apply filters if there's search data
+            if form.name.data:
+                query = query.filter(Item.name.ilike(f"%{form.name.data}%"))
+            if form.brand.data:
+                query = query.filter(ItemSKU.brand.ilike(f"%{form.brand.data}%"))
+            if form.spec.data:
+                query = query.filter(ItemSKU.spec.ilike(f"%{form.spec.data}%"))
+
+        # Add ordering
+        query = query.order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
         pagination = query.paginate(page=page, per_page=per_page)
         if pagination.items:
             warehouse_items[selected_warehouse] = pagination.items
@@ -62,6 +103,7 @@ def inventory():
         pagination=pagination,
         warehouses=warehouses,
         selected_warehouse=selected_warehouse,
+        itemSearchForm=form,
     )
 
 
@@ -101,7 +143,9 @@ def stockin():
                 db.session.add(transaction)
             except ValueError:
                 flash(f"无效的物品: {item_form.item_id.data}", "danger")
-                return render_template("stockin.html.jinja", form=form, items=items)
+                return render_template(
+                    "inventory_stockin.html.jinja", form=form, items=items
+                )
 
         db.session.commit()
         receipt.update_warehouse_item_skus()
@@ -110,4 +154,4 @@ def stockin():
         flash("入库成功。", "success")
         return redirect(url_for("index"))
 
-    return render_template("stockin.html.jinja", form=form, items=items)
+    return render_template("inventory_stockin.html.jinja", form=form, items=items)
