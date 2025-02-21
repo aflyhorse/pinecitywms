@@ -125,9 +125,7 @@ def test_receipt_model(client, test_user):
         receipt.update_warehouse_item_skus()
         db.session.flush()
         assert warehouse.item_skus[0].count == 5 + 10
-        newaverage = Decimal(float(5 * 10 + 10 * 20) / (5 + 10)).quantize(
-            Decimal("0.01")
-        )
+        newaverage = float(5 * 10 + 10 * 20) / (5 + 10)
         assert warehouse.item_skus[0].average_price == newaverage
 
         receipt = Receipt(

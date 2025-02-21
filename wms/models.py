@@ -30,18 +30,23 @@ class User(db.Model, UserMixin):
 
 class Item(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    # Basic item information
     name: Mapped[str] = mapped_column(
         String(30), unique=True, nullable=False, index=True
     )
+    # One item can have multiple SKUs with different specs
     skus: Mapped[List["ItemSKU"]] = relationship(back_populates="item")
 
 
 class Warehouse(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    # Public warehouses are visible to all users
     is_public: Mapped[bool] = mapped_column(default=False)
+    # Private warehouses have an owner
     owner_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=True)
     owner: Mapped[User] = relationship(back_populates="warehouse", uselist=False)
+    # Related receipts and inventory items
     receipts: Mapped[List["Receipt"]] = relationship(back_populates="warehouse")
     item_skus: Mapped[List["WarehouseItemSKU"]] = relationship(
         "WarehouseItemSKU", back_populates="warehouse"
@@ -50,10 +55,13 @@ class Warehouse(db.Model):
 
 class ItemSKU(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    # Link to parent item
     item_id: Mapped[int] = mapped_column(ForeignKey("item.id"))
     item: Mapped[Item] = relationship(back_populates="skus")
+    # SKU specific details
     brand: Mapped[str] = mapped_column(String(30))
     spec: Mapped[str] = mapped_column(String(50))
+    # Related transactions and warehouse inventory
     trasanctions: Mapped[List["Transaction"]] = relationship(back_populates="itemSKU")
     warehouses: Mapped[List["WarehouseItemSKU"]] = relationship(
         "WarehouseItemSKU", back_populates="itemSKU"
@@ -62,42 +70,51 @@ class ItemSKU(db.Model):
 
 class WarehouseItemSKU(db.Model):
     __tablename__ = "warehouse_item_sku"
+    # Composite primary key of warehouse and SKU
     warehouse_id: Mapped[int] = mapped_column(
         ForeignKey("warehouse.id"), primary_key=True
     )
     itemSKU_id: Mapped[int] = mapped_column(ForeignKey("item_sku.id"), primary_key=True)
+    # Current inventory status
     count: Mapped[int] = mapped_column(db.Integer, default=0, nullable=False)
     average_price: Mapped[float] = mapped_column(default=0, nullable=False)
+    # Relationships
     warehouse: Mapped[Warehouse] = relationship("Warehouse", back_populates="item_skus")
     itemSKU: Mapped[ItemSKU] = relationship("ItemSKU", back_populates="warehouses")
 
 
 class Transaction(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    # Link to the SKU being transacted
     itemSKU_id: Mapped[int] = mapped_column(ForeignKey("item_sku.id"))
     itemSKU: Mapped[ItemSKU] = relationship(back_populates="trasanctions")
+    # Transaction details
     count: Mapped[int]
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    # Link to the receipt this transaction belongs to
     receipt_id: Mapped[int] = mapped_column(ForeignKey("receipt.id"), nullable=False)
     receipt: Mapped["Receipt"] = relationship(back_populates="transactions")
 
 
 class ReceiptType(enum.Enum):
-    STOCKIN = 0
-    STOCKOUT = 1
-    TAKESTOCK = 2
+    STOCKIN = 0  # Incoming stock
+    STOCKOUT = 1  # Outgoing stock
+    TAKESTOCK = 2  # Stock taking/adjustment
 
 
 class Receipt(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    refcode: Mapped[str] = mapped_column(String(30))
+    # Receipt identification
+    refcode: Mapped[str] = mapped_column(String(30), unique=True)
     type: Mapped[ReceiptType] = mapped_column(
         Enum(ReceiptType), default=ReceiptType.STOCKOUT, nullable=False
     )
+    # Receipt operator and timestamp
     operator_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
     operator: Mapped[User] = relationship(back_populates="receipts")
-    transactions: Mapped[List[Transaction]] = relationship(back_populates="receipt")
     date: Mapped[datetime] = mapped_column(default=datetime.now, nullable=False)
+    # Related items and warehouse
+    transactions: Mapped[List[Transaction]] = relationship(back_populates="receipt")
     warehouse_id: Mapped[int] = mapped_column(
         ForeignKey("warehouse.id"), nullable=False
     )
@@ -105,12 +122,13 @@ class Receipt(db.Model):
 
     @property
     def sum(self) -> float:
+        # Calculate total value of the receipt
         return sum(
             transaction.count * transaction.price for transaction in self.transactions
         )
 
-    # should instantly call this function after commit, to update warehouse item skus
     def update_warehouse_item_skus(self):
+        # Update warehouse inventory after a receipt is processed
         for transaction in self.transactions:
             warehouse_item_sku = (
                 db.session.query(WarehouseItemSKU)
@@ -121,6 +139,7 @@ class Receipt(db.Model):
             )
             if warehouse_item_sku:
                 if self.type == ReceiptType.STOCKIN:
+                    # Update average price and count for stock in
                     total_count = warehouse_item_sku.count + transaction.count
                     warehouse_item_sku.average_price = (
                         warehouse_item_sku.count * warehouse_item_sku.average_price
@@ -131,8 +150,10 @@ class Receipt(db.Model):
                     self.type == ReceiptType.STOCKOUT
                     or self.type == ReceiptType.TAKESTOCK
                 ):
+                    # Update count for stock out or stock taking
                     warehouse_item_sku.count += transaction.count
             else:
+                # Create new warehouse item SKU if it doesn't exist
                 warehouse_item_sku = WarehouseItemSKU(
                     warehouse_id=self.warehouse_id,
                     itemSKU_id=transaction.itemSKU_id,
