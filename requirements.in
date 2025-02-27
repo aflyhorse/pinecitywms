@@ -1,0 +1,11 @@
+Bootstrap-Flask
+Flask
+Flask-Login
+Flask-SQLAlchemy
+Flask-WTF
+pytest
+python-dotenv
+
+# Optional for dev
+#djlint
+#pytest-cov
