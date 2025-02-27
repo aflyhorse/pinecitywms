@@ -165,12 +165,12 @@ class Receipt(db.Model):
 
 
 class CustomerType(enum.Enum):
-    AREA = "区域"
+    PUBLICAREA = "公共区域"
     DEPARTMENT = "部门"
     GROUP = "班组"
 
 
 class Customer(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
     type: Mapped[CustomerType] = mapped_column(Enum(CustomerType), nullable=False)

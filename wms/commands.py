@@ -1,5 +1,15 @@
 from wms import app, db
-from wms.models import Receipt, User, Item, ItemSKU, Transaction, Warehouse, ReceiptType
+from wms.models import (
+    Receipt,
+    User,
+    Item,
+    ItemSKU,
+    Transaction,
+    Warehouse,
+    ReceiptType,
+    Customer,
+    CustomerType,
+)
 import click
 
 
@@ -11,6 +21,42 @@ def initdb(drop):
     db.create_all()
     click.echo("Initialized database.")
 
+    publicareas = ["地下室"]
+    for i in range(1, 4 + 1):
+        publicareas.append(f"{i}F主楼")
+        publicareas.append(f"{i}F群房")
+    publicareas.append("5F屋面")
+    for i in range(5, 11 + 1):
+        publicareas.append(f"{i}F办公房")
+    for i in range(12, 19 + 1):
+        publicareas.append(f"{i}F客房")
+    publicareas.append("19F屋面")
+    for area in publicareas:
+        db.session.add(Customer(name=area, type=CustomerType.PUBLICAREA))
+
+    departments = [
+        "活动中心主任室",
+        "行政办公室",
+        "康乐科",
+        "餐饮服务科",
+        "会务科",
+        "总经理室",
+        "副总经理室",
+        "党建办",
+        "人事科",
+        "设备管理科",
+        "安全保卫科",
+        "规划财务科",
+        "业务指导一科",
+        "业务指导二科",
+        "业务指导三科",
+        "老干部大学",
+        "老干部招待所",
+        "岳阳大院",
+    ]
+    for depart in departments:
+        db.session.add(Customer(name=depart, type=CustomerType.DEPARTMENT))
+
     usernames = [("admin", "管理员"), ("ruodian", "弱电")]
     for name in usernames:
         user = User(username=name[0], nickname=name[1], is_admin=True)
@@ -18,6 +64,8 @@ def initdb(drop):
         warehouse = Warehouse(name=f"{name[1]}仓库", owner=user)
         db.session.add(user)
         db.session.add(warehouse)
+    db.session.add(Customer(name="办公室", type=CustomerType.GROUP))
+    db.session.add(Customer(name=usernames[1][1], type=CustomerType.GROUP))
 
     usernames = [
         ("qiangdian", "强电"),
@@ -31,6 +79,7 @@ def initdb(drop):
         warehouse = Warehouse(name=f"{name[1]}仓库", owner=user)
         db.session.add(user)
         db.session.add(warehouse)
+        db.session.add(Customer(name=name[1], type=CustomerType.GROUP))
 
     warehouse = Warehouse(name="回收仓库", is_public=True)
     db.session.add(warehouse)

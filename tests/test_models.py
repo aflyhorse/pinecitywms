@@ -155,7 +155,7 @@ def test_customer_model(client):
         # Test area customer creation
         area = Customer(
             name="测试区域",
-            type=CustomerType.AREA,
+            type=CustomerType.PUBLICAREA,
         )
         db.session.add(area)
 
@@ -169,6 +169,6 @@ def test_customer_model(client):
         db.session.flush()
 
         # Test relationships
-        assert area.type == CustomerType.AREA
+        assert area.type == CustomerType.PUBLICAREA
         assert department.type == CustomerType.DEPARTMENT
         assert group.type == CustomerType.GROUP
