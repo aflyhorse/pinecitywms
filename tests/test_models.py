@@ -8,6 +8,8 @@ from wms.models import (
     Receipt,
     ReceiptType,
     Warehouse,
+    Customer,
+    CustomerType,
 )
 from wms import db
 
@@ -146,3 +148,27 @@ def test_receipt_model(client, test_user):
         db.session.flush()
         assert warehouse.item_skus[0].count == 5 + 10 - 2
         assert warehouse.item_skus[0].average_price == newaverage
+
+
+def test_customer_model(client):
+    with client.application.app_context():
+        # Test area customer creation
+        area = Customer(
+            name="测试区域",
+            type=CustomerType.AREA,
+        )
+        db.session.add(area)
+
+        # Test department under area
+        department = Customer(name="测试部门", type=CustomerType.DEPARTMENT)
+        db.session.add(department)
+
+        # Test group under department
+        group = Customer(name="测试班组", type=CustomerType.GROUP)
+        db.session.add(group)
+        db.session.flush()
+
+        # Test relationships
+        assert area.type == CustomerType.AREA
+        assert department.type == CustomerType.DEPARTMENT
+        assert group.type == CustomerType.GROUP

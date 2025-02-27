@@ -160,7 +160,7 @@ def test_inventory_access_control(client, regular_user, regular_warehouse):
         # Create warehouse owned by the other user
         otherwarehouse = Warehouse(name=otherwarehouse_name, owner=other_user)
         db.session.add(otherwarehouse)
-        db.session.commit()
+        db.session.flush()
         otherwarehouse_id = otherwarehouse.id
 
     # Regular user should not see the private warehouse owned by other_user

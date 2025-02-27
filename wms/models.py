@@ -162,3 +162,15 @@ class Receipt(db.Model):
                 )
                 db.session.add(warehouse_item_sku)
         db.session.commit()
+
+
+class CustomerType(enum.Enum):
+    AREA = "区域"
+    DEPARTMENT = "部门"
+    GROUP = "班组"
+
+
+class Customer(db.Model):
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    type: Mapped[CustomerType] = mapped_column(Enum(CustomerType), nullable=False)
