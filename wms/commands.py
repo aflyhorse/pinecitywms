@@ -137,4 +137,26 @@ def forge():
     db.session.commit()
     receipt.update_warehouse_item_skus()
     db.session.commit()
+
+    user: User = db.session.execute(
+        db.select(User).filter_by(username="admin")
+    ).scalar_one()
+    item: Item = db.session.execute(
+        db.select(Item).filter_by(name="螺丝")
+    ).scalar_one()
+    itemSKU: ItemSKU = db.session.execute(
+        db.select(ItemSKU).filter_by(item=item)
+    ).scalar_one()
+    receipt = Receipt(
+        operator=user,
+        refcode="20250214-3",
+        warehouse=user.warehouse,
+        type=ReceiptType.STOCKIN,
+    )
+    db.session.add(receipt)
+    db.session.add(Transaction(itemSKU=itemSKU, count=5, price=10, receipt=receipt))
+    db.session.commit()
+    receipt.update_warehouse_item_skus()
+    db.session.commit()
+
     click.echo("Data forging done.")

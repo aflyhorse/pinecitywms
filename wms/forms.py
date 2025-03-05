@@ -69,3 +69,24 @@ class StockInForm(FlaskForm):
     warehouse = SelectField("库房", coerce=int, validators=[InputRequired()])
     items = FieldList(FormField(StockInItemForm), min_entries=1)
     submit = SubmitField("入库")
+
+
+class StockOutItemForm(FlaskForm):
+    item_id = StringField(
+        "物品", validators=[DataRequired()], render_kw={"list": "item-ids"}
+    )
+    stock_count = IntegerField("库存数量", render_kw={"readonly": True})
+    quantity = IntegerField("数量", validators=[InputRequired()])
+    price = DecimalField("价格", validators=[InputRequired()], render_kw={"readonly": True})
+
+
+class StockOutForm(FlaskForm):
+    warehouse = SelectField("仓库", coerce=int, validators=[InputRequired()])
+    customer = SelectField("客户", coerce=int, validators=[InputRequired()])
+    customer_type = SelectField(
+        "客户类型",
+        validators=[InputRequired()],
+        choices=[("PUBLICAREA", "公共区域"), ("DEPARTMENT", "部门"), ("GROUP", "班组")],
+    )
+    items = FieldList(FormField(StockOutItemForm), min_entries=1)
+    submit = SubmitField("出库")

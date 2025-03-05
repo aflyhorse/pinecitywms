@@ -7,5 +7,4 @@ pytest
 python-dotenv
 
 # Optional for dev
-#djlint
-#pytest-cov
+pytest-cov

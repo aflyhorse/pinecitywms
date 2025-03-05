@@ -52,6 +52,18 @@ def test_item(client):
 
 
 @pytest.fixture
+def test_another_item(client):
+    with app.app_context():
+        item_name = f"Another Test Item {uuid.uuid4()}"
+        item = Item(name=item_name)
+        db.session.add(item)
+        sku = ItemSKU(item=item, brand="Another Test Brand", spec="Another Test Spec")
+        db.session.add(sku)
+        db.session.commit()
+        return item_name
+
+
+@pytest.fixture
 def auth_client(client, test_user):
     with app.app_context():
         client.post(

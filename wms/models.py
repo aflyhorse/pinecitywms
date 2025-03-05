@@ -105,7 +105,7 @@ class ReceiptType(enum.Enum):
 class Receipt(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     # Receipt identification
-    refcode: Mapped[str] = mapped_column(String(30), unique=True)
+    refcode: Mapped[str] = mapped_column(String(30), unique=True, nullable=True)
     type: Mapped[ReceiptType] = mapped_column(
         Enum(ReceiptType), default=ReceiptType.STOCKOUT, nullable=False
     )

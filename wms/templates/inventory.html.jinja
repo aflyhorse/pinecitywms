@@ -4,17 +4,23 @@
 {% from 'bootstrap5/pagination.html' import render_pagination %}
 {% block content %}
     <div class="container p-5 my-5">
+        <div class="d-flex mb-3">
+            {% if current_user.is_admin %}<a href="{{ url_for('stockin') }}" class="btn btn-primary me-2">入库</a>{% endif %}
+            <a href="{{ url_for('stockout') }}" class="btn btn-danger">出库</a>
+        </div>
         <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <form method="get" class="d-flex">
-                    <select name="warehouse" class="form-select" onchange="this.form.submit()">
-                        {% for warehouse in warehouses %}
-                            <option value="{{ warehouse.id }}"
-                                    {% if warehouse == selected_warehouse %}selected{% endif %}>{{ warehouse.name }}</option>
-                        {% endfor %}
-                    </select>
-                </form>
-                <div>{{ render_form(itemSearchForm, form_type="inline") }}</div>
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <form method="get" class="d-flex">
+                        <select name="warehouse" class="form-select" onchange="this.form.submit()">
+                            {% for warehouse in warehouses %}
+                                <option value="{{ warehouse.id }}"
+                                        {% if warehouse == selected_warehouse %}selected{% endif %}>{{ warehouse.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    <div>{{ render_form(itemSearchForm, form_type="inline") }}</div>
+                </div>
             </div>
             <div class="card-body">
                 {% if pagination %}

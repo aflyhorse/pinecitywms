@@ -25,7 +25,6 @@
                             {{ render_nav_item('inventory', '库存管理') }}
                             {% if user.is_admin %}
                                 {{ render_nav_item('item', '物品管理') }}
-                                {{ render_nav_item('stockin', '入库') }}
                             {% endif %}
                         </ul>
                     </div>

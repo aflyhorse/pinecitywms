@@ -1,0 +1,483 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    <head>
+        
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="description" content="青松城设备科仓库管理系统 - 用于管理设备和物品的仓库管理系统">
+            <meta name="keywords" content="仓库管理,设备管理,物品管理,青松城,设备科">
+            
+                <link rel="stylesheet" href="/bootstrap/static/css/bootstrap.min.css">
+            
+            <title>青松城设备科仓库管理系统</title>
+        
+    </head>
+    <body>
+        
+
+    
+        <div class="alert alert-danger" role="alert">
+    
+           无效的物品: 1
+        </div>
+        <nav class="navbar navbar-expand-sm bg-light">
+            <div class="container-fluid">
+                <div class="d-flex justify-content-start">
+                    <ul class="navbar-nav">
+                        
+    
+    
+    <a class="nav-item nav-link"
+       href="/">
+        青松城设备科仓库管理系统 
+    </a>
+    
+
+                        
+                            
+    
+    
+    <a class="nav-item nav-link"
+       href="/inventory">
+        库存管理 
+    </a>
+    
+
+                            
+                                
+    
+    
+    <a class="nav-item nav-link"
+       href="/item">
+        物品管理 
+    </a>
+    
+
+                            
+                        </ul>
+                    </div>
+                    <div class="d-flex justify-content-end"></div>
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link">你好，Test Admin</a>
+                        </li>
+                        
+    
+    
+    <a class="nav-item nav-link"
+       href="/logout">
+        登出 
+    </a>
+    
+
+                    </ul>
+                
+            </div>
+        </nav>
+        
+    <style>
+        /* Style for readonly fields */
+        input[readonly] {
+            background-color: #e9ecef;
+            cursor: not-allowed;
+            border-color: #ced4da;
+            opacity: 0.8;
+        }
+    </style>
+    <div class="container p-5 my-5 border">
+        <h2>出库</h2>
+        <form method="post" autocomplete="off" id="stockout-form">
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="warehouse">仓库</label>
+                        <select class="form-select" id="warehouse" name="warehouse" required><option selected value="1">Test Warehouse</option><option value="2">Public Warehouse</option></select>
+                    
+        </div>
+    
+</div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="customer_type">客户类型</label>
+                        <select class="form-select" id="customer_type" name="customer_type" required><option selected value="PUBLICAREA">公共区域</option><option value="DEPARTMENT">部门</option><option value="GROUP">班组</option></select>
+                    
+        </div>
+    
+</div>
+                <div class="col-md-6">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="customer">客户</label>
+                        <select class="form-select" id="customer" name="customer" required><option selected value="1">Test Area</option></select>
+                    
+        </div>
+    
+</div>
+            </div>
+            <datalist id="item-ids">
+                
+            </datalist>
+            <div id="items">
+                
+                    
+                    <div class="item-form d-flex align-items-center">
+                        <div class="flex-grow-1">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="items-0-item_id">物品</label>
+                        <input autocomplete="off" class="form-control" id="items-0-item_id" list="item-ids" name="items-0-item_id" placeholder="输入或选择物品" required type="text" value="1">
+                    
+        </div>
+    
+</div>
+                        <div class="flex-grow-1">
+
+    
+    
+
+    
+
+    
+    
+    
+    
+        
+        
+        
+        
+    
+    
+
+    <div class="mb-3"><label class="form-label" for="items-0-stock_count">库存数量</label>
+                        <input class="form-control readonly-field" id="items-0-stock_count" name="items-0-stock_count" readonly type="number" value="">
+                    
+        </div>
+    
+</div>
+                        <div class="flex-grow-1">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="items-0-quantity">数量</label>
+                        <input class="form-control" id="items-0-quantity" name="items-0-quantity" required type="number" value="5">
+                    
+        </div>
+    
+</div>
+                        <div class="flex-grow-1">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+        
+        
+        
+        
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="items-0-price">价格</label>
+                        <input class="form-control readonly-field" id="items-0-price" name="items-0-price" readonly required step="any" type="number" value="75.00">
+                    
+        </div>
+    
+</div>
+                        <button type="button" class="btn btn-danger remove-item">x</button>
+                    </div>
+                
+            </div>
+            <button type="button" class="btn btn-primary" id="add-item">添加物品</button>
+            
+
+    
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    
+        
+        
+        
+    
+
+            
+            
+            <input class="btn btn-primary btn-md" id="submit" name="submit" type="submit" value="出库">
+        
+
+
+
+
+        </form>
+    </div>
+
+        
+    
+            <script src="/bootstrap/static/umd/popper.min.js"></script>
+        <script src="/bootstrap/static/js/bootstrap.min.js"></script>
+        
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const addItemButton = document.getElementById('add-item');
+            const itemsDiv = document.getElementById('items');
+            const customerTypeSelect = document.querySelector('[name="customer_type"]');
+            const customerSelect = document.querySelector('[name="customer"]');
+            const warehouseSelect = document.querySelector('[name="warehouse"]');
+            const stockoutForm = document.getElementById('stockout-form');
+
+            // Store the customers data grouped by type
+            const customersByType = {
+                
+                    'PUBLICAREA': [
+                        
+                            {
+                                id: 1,
+                                name: 'Test Area'
+                            }
+                        
+                    ],
+                
+                    'DEPARTMENT': [
+                        
+                            {
+                                id: 2,
+                                name: 'Test Department'
+                            }
+                        
+                    ],
+                
+                    'GROUP': [
+                        
+                            {
+                                id: 3,
+                                name: 'Test Group'
+                            }
+                        
+                    ]
+                
+            };
+
+            // Handle customer type change
+            customerTypeSelect.addEventListener('change', function() {
+                const selectedType = this.value;
+                const customers = customersByType[selectedType] || [];
+
+                // Update customer select options
+                customerSelect.innerHTML = '';
+                customers.forEach(customer => {
+                    const option = document.createElement('option');
+                    option.value = customer.id;
+                    option.textContent = customer.name;
+                    customerSelect.appendChild(option);
+                });
+            });
+
+            // Handle warehouse change - create a dedicated action for warehouse changes
+            warehouseSelect.addEventListener('change', function() {
+                // Redirect to the stockout page with the selected warehouse as a parameter
+                const selectedWarehouse = this.value;
+                window.location.href = `/stockout?warehouse=${selectedWarehouse}`;
+            });
+
+            // Trigger initial customer list update
+            customerTypeSelect.dispatchEvent(new Event('change'));
+
+            // Handle adding new item
+            addItemButton.addEventListener('click', function() {
+                const template = document.querySelector('.item-form');
+                if (template) {
+                    const clone = template.cloneNode(true);
+                    clone.querySelectorAll('input').forEach(input => {
+                        input.value = '';
+                        // Ensure autocomplete is off for newly added item inputs
+                        if (input.name && input.name.endsWith('item_id')) {
+                            input.setAttribute('autocomplete', 'off');
+                        }
+                        // Ensure readonly styling is applied
+                        if (input.hasAttribute('readonly')) {
+                            input.classList.add('readonly-field');
+                        }
+                    });
+                    itemsDiv.appendChild(clone);
+                }
+            });
+
+            // Handle removing item
+            itemsDiv.addEventListener('click', function(event) {
+                if (event.target.classList.contains('remove-item')) {
+                    const itemForms = document.querySelectorAll('.item-form');
+                    if (itemForms.length > 1) {
+                        event.target.closest('.item-form').remove();
+                    }
+                }
+            });
+
+            // Create a mapping of item names to IDs, prices and stock counts
+            const itemNameMapping = {};
+            const itemPrices = {};
+            const itemCounts = {};
+            
+
+            // Store the original items array for searching
+            const items = [
+                
+            ];
+
+            // Handle item search, selection, and auto-fill for price and stock count
+            itemsDiv.addEventListener('input', function(event) {
+                const input = event.target;
+                if (input.name && input.name.endsWith('item_id')) {
+                    // Get the item form container
+                    const itemForm = input.closest('.item-form');
+                    const priceInput = itemForm.querySelector('[name$="price"]');
+                    const stockCountInput = itemForm.querySelector('[name$="stock_count"]');
+
+                    // If exact match found, set the price and stock count
+                    const itemId = itemNameMapping[input.value];
+                    if (itemId) {
+                        priceInput.value = itemPrices[itemId].toFixed(2);
+                        stockCountInput.value = itemCounts[itemId];
+                        
+                        // Highlight the readonly fields briefly to show they've been updated
+                        [priceInput, stockCountInput].forEach(field => {
+                            field.style.transition = 'background-color 0.3s';
+                            field.style.backgroundColor = '#d1ecf1';
+                            setTimeout(() => {
+                                field.style.backgroundColor = '';
+                            }, 500);
+                        });
+                        
+                        return;
+                    }
+
+                    // Update datalist options based on input
+                    const datalist = document.getElementById('item-ids');
+                    datalist.innerHTML = '';
+
+                    const searchTerm = input.value.toLowerCase();
+                    const matches = items.filter(item =>
+                        item.name.toLowerCase().includes(searchTerm)
+                    );
+
+                    matches.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.name;
+                        datalist.appendChild(option);
+                    });
+                }
+            });
+
+            // Store selected item's ID in the form before submission
+            stockoutForm.addEventListener('submit', function(event) {
+                const itemInputs = document.querySelectorAll('[name$="item_id"]');
+                let hasError = false;
+
+                for (let input of itemInputs) {
+                    const id = itemNameMapping[input.value];
+                    if (id) {
+                        input.value = id;
+                    } else if (input.value) {
+                        hasError = true;
+                    }
+                }
+
+                if (hasError) {
+                    event.preventDefault();
+                    alert('请从列表中选择有效的物品');
+                }
+            });
+            
+            // Disable browser autocomplete for all item input fields
+            document.querySelectorAll('[name$="item_id"]').forEach(input => {
+                input.setAttribute('autocomplete', 'off');
+            });
+
+            // Apply visual readonly styling to readonly fields
+            document.querySelectorAll('input[readonly]').forEach(input => {
+                input.classList.add('readonly-field');
+            });
+        });
+    </script>
+
+    </body>
+</html>
