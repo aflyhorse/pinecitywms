@@ -1,6 +1,6 @@
 import pytest
 from wms import app, db
-from wms.models import User, Item, ItemSKU
+from wms.models import User, Item, ItemSKU, Warehouse, Customer, CustomerType
 import uuid
 
 
@@ -71,3 +71,47 @@ def auth_client(client, test_user):
             data={"username": "testadmin", "password": "password123", "remember": "y"},
         )
         return client
+
+
+@pytest.fixture
+def test_warehouse(auth_client, test_user):
+    with app.app_context():
+        warehouse = Warehouse(name="Test Warehouse", owner=test_user)
+        db.session.add(warehouse)
+        db.session.commit()
+        warehouse_id = warehouse.id  # Get the ID before closing the session
+        return warehouse_id
+
+
+@pytest.fixture
+def regular_warehouse(auth_client, regular_user):
+    with app.app_context():
+        warehouse = Warehouse(name="Test Warehouse", owner=regular_user)
+        db.session.add(warehouse)
+        db.session.commit()
+        warehouse_id = warehouse.id  # Get the ID before closing the session
+        return warehouse_id
+
+
+@pytest.fixture
+def public_warehouse(auth_client):
+    with app.app_context():
+        warehouse = Warehouse(name="Public Warehouse", owner=None, is_public=True)
+        db.session.add(warehouse)
+        db.session.commit()
+        warehouse_id = warehouse.id  # Get the ID before closing the session
+        return warehouse_id
+
+
+@pytest.fixture
+def test_customer(auth_client):
+    with app.app_context():
+        # Create test customers for each type
+        area = Customer(name="Test Area", type=CustomerType.PUBLICAREA)
+        department = Customer(name="Test Department", type=CustomerType.DEPARTMENT)
+        group = Customer(name="Test Group", type=CustomerType.GROUP)
+
+        db.session.add_all([area, department, group])
+        db.session.commit()
+
+        return {"area": area.id, "department": department.id, "group": group.id}

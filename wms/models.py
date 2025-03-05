@@ -119,6 +119,9 @@ class Receipt(db.Model):
         ForeignKey("warehouse.id"), nullable=False
     )
     warehouse: Mapped[Warehouse] = relationship(back_populates="receipts")
+    # Customer for stockout receipts
+    customer_id: Mapped[int] = mapped_column(ForeignKey("customer.id"), nullable=True)
+    customer: Mapped["Customer"] = relationship("Customer")
 
     @property
     def sum(self) -> float:

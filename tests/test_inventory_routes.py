@@ -3,57 +3,12 @@ from wms.models import (
     Warehouse,
     ItemSKU,
     User,
-    Customer,
     CustomerType,
     Receipt,
     ReceiptType,
 )
 from wms import app, db
 from werkzeug.security import generate_password_hash
-
-
-@pytest.fixture
-def test_warehouse(auth_client, test_user):
-    with app.app_context():
-        warehouse = Warehouse(name="Test Warehouse", owner=test_user)
-        db.session.add(warehouse)
-        db.session.commit()
-        warehouse_id = warehouse.id  # Get the ID before closing the session
-        return warehouse_id
-
-
-@pytest.fixture
-def regular_warehouse(auth_client, regular_user):
-    with app.app_context():
-        warehouse = Warehouse(name="Test Warehouse", owner=regular_user)
-        db.session.add(warehouse)
-        db.session.commit()
-        warehouse_id = warehouse.id  # Get the ID before closing the session
-        return warehouse_id
-
-
-@pytest.fixture
-def public_warehouse(auth_client):
-    with app.app_context():
-        warehouse = Warehouse(name="Public Warehouse", owner=None, is_public=True)
-        db.session.add(warehouse)
-        db.session.commit()
-        warehouse_id = warehouse.id  # Get the ID before closing the session
-        return warehouse_id
-
-
-@pytest.fixture
-def test_customer(auth_client):
-    with app.app_context():
-        # Create test customers for each type
-        area = Customer(name="Test Area", type=CustomerType.PUBLICAREA)
-        department = Customer(name="Test Department", type=CustomerType.DEPARTMENT)
-        group = Customer(name="Test Group", type=CustomerType.GROUP)
-
-        db.session.add_all([area, department, group])
-        db.session.commit()
-
-        return {"area": area.id, "department": department.id, "group": group.id}
 
 
 @pytest.mark.usefixtures("test_item")
@@ -503,6 +458,8 @@ def test_stockout_receipt_creation(auth_client, test_warehouse, test_customer):
         )
         assert receipt is not None
         assert receipt.operator_id == 1  # admin user ID
+        assert receipt.customer_id == test_customer["area"]  # Verify customer was saved
+        assert receipt.customer.type == CustomerType.PUBLICAREA  # Verify customer type
 
         # Check transaction details
         transaction = receipt.transactions[0]
@@ -565,9 +522,6 @@ def test_warehouse_item_availability(
         follow_redirects=True,
     )
     assert response.status_code == 200
-    # save response to a local file
-    with open("response.html", "wb") as f:
-        f.write(response.data)
     # Should show stock insufficient error
     assert (
         b"\xe5\xba\x93\xe5\xad\x98\xe4\xb8\x8d\xe8\xb6\xb3" in response.data

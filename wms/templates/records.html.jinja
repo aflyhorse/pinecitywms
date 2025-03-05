@@ -1,0 +1,104 @@
+{% extends "base.html.jinja" %}
+{% from 'bootstrap5/pagination.html' import render_pagination %}
+
+{% block content %}
+<div class="container p-5 my-5">
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>操作记录</h3>
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label">记录类型</label>
+                    <select name="type" class="form-select" onchange="this.form.submit()">
+                        <option value="stockin" {% if record_type == 'stockin' %}selected{% endif %}>入库</option>
+                        <option value="stockout" {% if record_type == 'stockout' %}selected{% endif %}>出库</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">仓库</label>
+                    <select name="warehouse" class="form-select">
+                        <option value="">全部仓库</option>
+                        {% for warehouse in warehouses %}
+                        <option value="{{ warehouse.id }}" {% if warehouse_id|int == warehouse.id %}selected{% endif %}>
+                            {{ warehouse.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">开始日期</label>
+                    <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">结束日期</label>
+                    <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+                </div>
+                {% if record_type == 'stockin' %}
+                <div class="col-md-2">
+                    <label class="form-label">单号</label>
+                    <input type="text" name="refcode" class="form-control" value="{{ refcode or '' }}" placeholder="搜索单号">
+                </div>
+                {% else %}
+                <div class="col-md-2">
+                    <label class="form-label">客户</label>
+                    <input type="text" name="customer" class="form-control" value="{{ customer or '' }}" placeholder="搜索客户">
+                </div>
+                {% endif %}
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary">查询</button>
+                </div>
+            </form>
+        </div>
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>物品</th>
+                        <th>规格</th>
+                        <th>数量</th>
+                        <th>价格</th>
+                        <th>仓库</th>
+                        {% if record_type == 'stockin' %}
+                        <th>单号</th>
+                        {% else %}
+                        <th>操作员</th>
+                        <th>客户</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in pagination.items %}
+                        <tr>
+                            <td>{{ transaction.receipt.date.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ transaction.itemSKU.item.name }}</td>
+                            <td>{{ transaction.itemSKU.brand }} - {{ transaction.itemSKU.spec }}</td>
+                            <td>{{ transaction.count if record_type == 'stockin' else -transaction.count }}</td>
+                            <td>¥{{ "%.2f"|format(transaction.price) }}</td>
+                            <td>{{ transaction.receipt.warehouse.name }}</td>
+                            {% if record_type == 'stockin' %}
+                            <td>{{ transaction.receipt.refcode }}</td>
+                            {% else %}
+                            <td>{{ transaction.receipt.operator.nickname }}</td>
+                            <td>{{ transaction.receipt.customer.name if transaction.receipt.customer else '' }}</td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% if pagination %}
+                <div class="mt-3">
+                    {{ render_pagination(pagination,
+                        type=record_type,
+                        warehouse=warehouse_id,
+                        start_date=start_date,
+                        end_date=end_date,
+                        refcode=refcode,
+                        customer=customer,
+                        args=request.args) }}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock content %}

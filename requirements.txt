@@ -12,6 +12,8 @@ bootstrap-flask==2.4.1
     # via -r requirements.in
 click==8.1.8
     # via flask
+coverage[toml]==7.6.12
+    # via pytest-cov
 flask==3.1.0
     # via
     #   -r requirements.in
@@ -44,7 +46,11 @@ packaging==24.2
     # via pytest
 pluggy==1.5.0
     # via pytest
-pytest==8.3.4
+pytest==8.3.5
+    # via
+    #   -r requirements.in
+    #   pytest-cov
+pytest-cov==6.0.0
     # via -r requirements.in
 python-dotenv==1.0.1
     # via -r requirements.in

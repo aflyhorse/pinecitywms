@@ -268,6 +268,7 @@ def stockout():
             operator=current_user,
             warehouse_id=selected_warehouse.id,
             type=ReceiptType.STOCKOUT,
+            customer=customer,
         )
         db.session.add(receipt)
         db.session.flush()
