@@ -101,6 +101,8 @@
                         // Ensure autocomplete is off for newly added item inputs
                         if (input.name && input.name.endsWith('item_id')) {
                             input.setAttribute('autocomplete', 'off');
+                            // Add data attribute for original value
+                            input.setAttribute('data-original-value', '');
                         }
                         // Ensure readonly styling is applied
                         if (input.hasAttribute('readonly')) {
@@ -152,11 +154,15 @@
                     const priceInput = itemForm.querySelector('[name$="price"]');
                     const stockCountInput = itemForm.querySelector('[name$="stock_count"]');
 
+                    // Store the original text input value for form submission
+                    input.setAttribute('data-original-value', input.value);
+
                     // If exact match found, set the price and stock count
                     const itemId = itemNameMapping[input.value];
                     if (itemId) {
                         priceInput.value = itemPrices[itemId].toFixed(2);
                         stockCountInput.value = itemCounts[itemId];
+                        input.setAttribute('data-item-id', itemId); // Store the matched ID
                         
                         // Highlight the readonly fields briefly to show they've been updated
                         [priceInput, stockCountInput].forEach(field => {
@@ -193,9 +199,13 @@
                 let hasError = false;
 
                 for (let input of itemInputs) {
-                    const id = itemNameMapping[input.value];
-                    if (id) {
-                        input.value = id;
+                    // Use the data-original-value to look up the ID
+                    const originalValue = input.getAttribute('data-original-value') || input.value;
+                    const itemId = itemNameMapping[originalValue];
+                    
+                    if (itemId) {
+                        // Replace the display text with the actual item ID for form submission
+                        input.value = itemId;
                     } else if (input.value) {
                         hasError = true;
                     }
@@ -207,8 +217,9 @@
                 }
             });
             
-            // Disable browser autocomplete for all item input fields
+            // Set initial data-original-value for existing fields
             document.querySelectorAll('[name$="item_id"]').forEach(input => {
+                input.setAttribute('data-original-value', input.value);
                 input.setAttribute('autocomplete', 'off');
             });
 
