@@ -12,6 +12,7 @@ from wms.models import (
     CustomerType,
 )
 from wms import db
+from sqlalchemy.exc import IntegrityError
 
 
 def test_user_model():
@@ -43,6 +44,15 @@ def test_item_model(client):
         assert len(item.skus) == 2
         assert sku1 in item.skus
         assert sku2 in item.skus
+
+        # Test unique constraint on item name
+        duplicate_item = Item(name=item_name)
+        db.session.add(duplicate_item)
+        try:
+            db.session.flush()
+            assert False, "Should have raised IntegrityError"
+        except IntegrityError:
+            db.session.rollback()
 
 
 def test_itemsku_model(client):
@@ -93,6 +103,7 @@ def test_receipt_model(client, test_user):
         db.session.add(warehouse)
         db.session.flush()
 
+        # Test STOCKIN receipt
         receipt = Receipt(
             operator=test_user,
             refcode="20250214-1",
@@ -113,6 +124,7 @@ def test_receipt_model(client, test_user):
         assert receipt.sum == 5 * 10
         assert warehouse.item_skus[0].count == 5
 
+        # Test second STOCKIN with different price
         receipt = Receipt(
             operator=test_user,
             refcode="20250214-2",
@@ -129,6 +141,7 @@ def test_receipt_model(client, test_user):
         newaverage = float(5 * 10 + 10 * 20) / (5 + 10)
         assert warehouse.item_skus[0].average_price == newaverage
 
+        # Test STOCKOUT receipt
         receipt = Receipt(
             operator=test_user,
             refcode="20250214-3",
@@ -147,6 +160,27 @@ def test_receipt_model(client, test_user):
         receipt.update_warehouse_item_skus()
         db.session.flush()
         assert warehouse.item_skus[0].count == 5 + 10 - 2
+        assert warehouse.item_skus[0].average_price == newaverage
+
+        # Test TAKESTOCK receipt
+        receipt = Receipt(
+            operator=test_user,
+            warehouse=warehouse,
+            type=ReceiptType.TAKESTOCK,
+        )
+        # Adjust stock count to 10 (current is 13)
+        transaction = Transaction(
+            itemSKU=sku,
+            count=-3,  # Reduce by 3 to get to 10
+            price=warehouse.item_skus[0].average_price,
+            receipt=receipt,
+        )
+        db.session.add(transaction)
+        db.session.add(receipt)
+        db.session.flush()
+        receipt.update_warehouse_item_skus()
+        db.session.flush()
+        assert warehouse.item_skus[0].count == 10
         assert warehouse.item_skus[0].average_price == newaverage
 
 
@@ -172,3 +206,49 @@ def test_customer_model(client):
         assert area.type == CustomerType.PUBLICAREA
         assert department.type == CustomerType.DEPARTMENT
         assert group.type == CustomerType.GROUP
+
+        # Test unique constraint on customer name
+        duplicate_area = Customer(name="测试区域", type=CustomerType.PUBLICAREA)
+        db.session.add(duplicate_area)
+        try:
+            db.session.flush()
+            assert False, "Should have raised IntegrityError"
+        except IntegrityError:
+            db.session.rollback()
+
+
+def test_warehouse_item_sku_creation(client, test_user):
+    with client.application.app_context():
+        # Test creation of WarehouseItemSKU for new item during stock operation
+        item = Item(name=f"Test Item {uuid.uuid4()}")
+        db.session.add(item)
+        sku = ItemSKU(item=item, brand="Test Brand", spec="Test Spec")
+        db.session.add(sku)
+        warehouse = Warehouse(name="Test Warehouse", owner=test_user)
+        db.session.add(warehouse)
+        db.session.flush()
+
+        # Create a receipt for a new item
+        receipt = Receipt(
+            operator=test_user,
+            refcode="TEST-NEW-ITEM",
+            warehouse=warehouse,
+            type=ReceiptType.STOCKIN,
+        )
+        transaction = Transaction(itemSKU=sku, count=5, price=10, receipt=receipt)
+        db.session.add(transaction)
+        db.session.add(receipt)
+        db.session.flush()
+
+        # Before update, warehouse should not have the item
+        assert len(warehouse.item_skus) == 0
+
+        receipt.update_warehouse_item_skus()
+        db.session.flush()
+
+        # After update, warehouse should have the item
+        assert len(warehouse.item_skus) == 1
+        warehouse_item = warehouse.item_skus[0]
+        assert warehouse_item.count == 5
+        assert warehouse_item.average_price == 10
+        assert warehouse_item.itemSKU == sku

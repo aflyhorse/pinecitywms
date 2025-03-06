@@ -1,6 +1,6 @@
 [run]
 source = wms
-omit = wms/commands.py, wms/templates/*
+omit = wms/commands.py, wms/templates/*, tests/*
 
 [report]
 exclude_lines =
