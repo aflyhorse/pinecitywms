@@ -37,7 +37,7 @@ class ItemCreateForm(FlaskForm):
     )
     existing_item = StringField(
         "已有物品",
-        render_kw={"list": "existing-items", "placeholder": "输入或选择物品"},
+        render_kw={"list": "existing-items", "placeholder": "输入或双击选择物品"},
     )
     new_item_name = StringField("新物品名称")
     brand = StringField("品牌", validators=[DataRequired(), Length(1, 20)])

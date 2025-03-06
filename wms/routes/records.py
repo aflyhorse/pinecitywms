@@ -22,7 +22,7 @@ from sqlalchemy import func, and_
 @admin_required
 def records():
     # Get filter parameters from request
-    record_type = request.args.get("type", "stockin")  # stockin or stockout
+    record_type = request.args.get("type", "stockout")  # stockin or stockout (default to stockout)
     warehouse_id = request.args.get("warehouse")
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
@@ -168,7 +168,7 @@ def statistics():
         for warehouse_id, customer_id, total_value in results:
             # Skip entries with no customer (shouldn't happen for STOCKOUT)
             if not customer_id:
-                continue
+                continue  # pragma: no cover
 
             # Update cell value
             stats_data["warehouses"][warehouse_id]["customers"][customer_id] = float(

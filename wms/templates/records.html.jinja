@@ -16,7 +16,7 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">仓库</label>
-                    <select name="warehouse" class="form-select">
+                    <select name="warehouse" class="form-select" onchange="this.form.submit()">
                         <option value="">全部仓库</option>
                         {% for warehouse in warehouses %}
                         <option value="{{ warehouse.id }}" {% if warehouse_id|int == warehouse.id %}selected{% endif %}>

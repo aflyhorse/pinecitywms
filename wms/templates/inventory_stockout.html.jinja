@@ -28,7 +28,7 @@
                 {% for item_form in form.items %}
                     {{ item_form.csrf_token }}
                     <div class="item-form d-flex align-items-center">
-                        <div class="flex-grow-1">{{ render_field(item_form.item_id, placeholder="输入或选择物品", autocomplete="off") }}</div>
+                        <div class="flex-grow-1">{{ render_field(item_form.item_id, placeholder="输入或双击选择物品", autocomplete="off") }}</div>
                         <div class="flex-grow-1">{{ render_field(item_form.stock_count, class="readonly-field") }}</div>
                         <div class="flex-grow-1">{{ render_field(item_form.quantity) }}</div>
                         <div class="flex-grow-1">{{ render_field(item_form.price, class="readonly-field") }}</div>

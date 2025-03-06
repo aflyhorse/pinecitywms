@@ -116,3 +116,89 @@ def test_records_pagination(auth_client, test_warehouse):
     assert response.status_code == 200
     # We should see the remaining 5 items
     assert response.data.count(b"<tr>") == 6  # 5 data rows + 1 header row
+
+
+@pytest.mark.usefixtures("test_item")
+def test_statistics_access_control(client, regular_user):
+    # Test access as non-admin user
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+
+    response = client.get("/statistics", follow_redirects=True)
+    assert response.status_code == 200  # Should be OK after redirect
+    assert b"Unauthorized Access" in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_statistics_page_access(auth_client):
+    # Test statistics page access
+    response = auth_client.get("/statistics")
+    assert response.status_code == 200
+    # Check for key elements on the page
+    assert b"start_date" in response.data
+    assert b"end_date" in response.data
+    assert b"current-year" in response.data
+    assert b"last-year" in response.data
+    assert b"current-month" in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_statistics_date_filtering(auth_client, test_warehouse, test_customer):
+    # Create stockout data to test statistics
+    with app.app_context():
+        sku = ItemSKU.query.first()
+
+        # Create a stockout receipt
+        receipt = Receipt(
+            operator_id=1,  # admin user
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKOUT,
+            customer_id=test_customer["area"],
+        )
+        db.session.add(receipt)
+        db.session.flush()
+
+        # Add transaction to stockout
+        transaction = Transaction(itemSKU=sku, count=-15, price=100.00, receipt=receipt)
+        db.session.add(transaction)
+        db.session.commit()
+
+    # Test with date range that should include our data
+    from datetime import datetime, timedelta
+
+    today = datetime.now().date()
+    start_date = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    end_date = today.strftime("%Y-%m-%d")
+
+    response = auth_client.get(
+        f"/statistics?start_date={start_date}&end_date={end_date}"
+    )
+    assert response.status_code == 200
+
+    # With data we should see the customer name and warehouse name
+    assert b"Test Area" in response.data
+    assert b"Test Warehouse" in response.data
+
+    # Verify the total value is displayed
+    assert b"1500.00" in response.data  # 15 * 100.00 = 1500.00
+
+
+@pytest.mark.usefixtures("test_item")
+def test_statistics_shortcut_buttons(auth_client):
+    # Test statistics page with date shortcut buttons
+    response = auth_client.get("/statistics")
+    assert response.status_code == 200
+
+    # Check that JavaScript correctly sets up the date filter buttons
+    assert b"current-year" in response.data
+    assert b"last-year" in response.data
+    assert b"current-month" in response.data
+    assert b"last-month" in response.data
+
+    # Verify JS functionality is included
+    assert b"getFirstDayOfMonth" in response.data
+    assert b"getLastDayOfMonth" in response.data
+    assert b"getFirstDayOfYear" in response.data
+    assert b"getLastDayOfYear" in response.data

@@ -28,15 +28,18 @@
                                 {{ render_nav_item('records', '操作记录') }}
                                 {{ render_nav_item('statistics', '出库统计') }}
                             {% endif %}
+                        {% endif %}
+                    </ul>
+                </div>
+                {% if current_user.is_authenticated %}
+                    <div class="d-flex justify-content-end">
+                        <ul class="navbar-nav">
+                            <li class="nav-item">
+                                <a class="nav-link">你好，{{ user.nickname }}</a>
+                            </li>
+                            {{ render_nav_item('logout', '登出') }}
                         </ul>
                     </div>
-                    <div class="d-flex justify-content-end"></div>
-                    <ul class="navbar-nav">
-                        <li class="nav-item">
-                            <a class="nav-link">你好，{{ user.nickname }}</a>
-                        </li>
-                        {{ render_nav_item('logout', '登出') }}
-                    </ul>
                 {% endif %}
             </div>
         </nav>
