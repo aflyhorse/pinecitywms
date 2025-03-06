@@ -6,46 +6,65 @@
     <div class="card mb-4">
         <div class="card-header">
             <h3>操作记录</h3>
-            <form method="get" class="row g-3 align-items-end">
-                <div class="col-md-2">
-                    <label class="form-label">记录类型</label>
-                    <select name="type" class="form-select" onchange="this.form.submit()">
-                        <option value="stockin" {% if record_type == 'stockin' %}selected{% endif %}>入库</option>
-                        <option value="stockout" {% if record_type == 'stockout' %}selected{% endif %}>出库</option>
-                    </select>
+            <form method="get">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label">记录类型</label>
+                        <select name="type" class="form-select" onchange="this.form.submit()">
+                            <option value="stockin" {% if record_type == 'stockin' %}selected{% endif %}>入库</option>
+                            <option value="stockout" {% if record_type == 'stockout' %}selected{% endif %}>出库</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">仓库</label>
+                        <select name="warehouse" class="form-select" onchange="this.form.submit()">
+                            <option value="">全部仓库</option>
+                            {% for warehouse in warehouses %}
+                            <option value="{{ warehouse.id }}" {% if warehouse_id|int == warehouse.id %}selected{% endif %}>
+                                {{ warehouse.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">开始日期</label>
+                        <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">结束日期</label>
+                        <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+                    </div>
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label">仓库</label>
-                    <select name="warehouse" class="form-select" onchange="this.form.submit()">
-                        <option value="">全部仓库</option>
-                        {% for warehouse in warehouses %}
-                        <option value="{{ warehouse.id }}" {% if warehouse_id|int == warehouse.id %}selected{% endif %}>
-                            {{ warehouse.name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">开始日期</label>
-                    <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">结束日期</label>
-                    <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
-                </div>
-                {% if record_type == 'stockin' %}
-                <div class="col-md-2">
-                    <label class="form-label">单号</label>
-                    <input type="text" name="refcode" class="form-control" value="{{ refcode or '' }}" placeholder="搜索单号">
-                </div>
-                {% else %}
-                <div class="col-md-2">
-                    <label class="form-label">客户</label>
-                    <input type="text" name="customer" class="form-control" value="{{ customer or '' }}" placeholder="搜索客户">
-                </div>
-                {% endif %}
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary">查询</button>
+                
+                <datalist id="item-names">
+                    {% for item in item_names %}
+                    <option value="{{ item.name }}">
+                    {% endfor %}
+                </datalist>
+                
+                <div class="row g-3 align-items-end mt-2">
+                    <div class="col-md-2">
+                        <label class="form-label">物品名称</label>
+                        <input type="text" name="item_name" class="form-control" value="{{ item_name or '' }}" placeholder="搜索物品" list="item-names" autocomplete="off">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">规格/品牌</label>
+                        <input type="text" name="sku_desc" class="form-control" value="{{ sku_desc or '' }}" placeholder="搜索规格或品牌">
+                    </div>
+                    {% if record_type == 'stockin' %}
+                    <div class="col-md-2">
+                        <label class="form-label">单号</label>
+                        <input type="text" name="refcode" class="form-control" value="{{ refcode or '' }}" placeholder="搜索单号">
+                    </div>
+                    {% else %}
+                    <div class="col-md-2">
+                        <label class="form-label">客户</label>
+                        <input type="text" name="customer" class="form-control" value="{{ customer or '' }}" placeholder="搜索客户">
+                    </div>
+                    {% endif %}
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary">查询</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -95,6 +114,8 @@
                         end_date=end_date,
                         refcode=refcode,
                         customer=customer,
+                        item_name=item_name,
+                        sku_desc=sku_desc,
                         args=request.args) }}
                 </div>
             {% endif %}

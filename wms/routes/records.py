@@ -22,12 +22,16 @@ from sqlalchemy import func, and_
 @admin_required
 def records():
     # Get filter parameters from request
-    record_type = request.args.get("type", "stockout")  # stockin or stockout (default to stockout)
+    record_type = request.args.get(
+        "type", "stockout"
+    )  # stockin or stockout (default to stockout)
     warehouse_id = request.args.get("warehouse")
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
     refcode = request.args.get("refcode")
     customer = request.args.get("customer")
+    item_name = request.args.get("item_name")
+    sku_desc = request.args.get("sku_desc")
     page = request.args.get("page", 1, type=int)
     per_page = 20
 
@@ -72,8 +76,21 @@ def records():
     if refcode and record_type == "stockin":
         query = query.filter(Receipt.refcode.ilike(f"%{refcode}%"))
 
+    # Add new filters for item name and SKU description
+    if item_name:
+        query = query.filter(Item.name.ilike(f"%{item_name}%"))
+
+    if sku_desc:
+        query = query.filter(
+            (ItemSKU.brand.ilike(f"%{sku_desc}%"))
+            | (ItemSKU.spec.ilike(f"%{sku_desc}%"))
+        )
+
     # Get all warehouses for the filter dropdown
     warehouses = Warehouse.query.all()
+
+    # Get all item names for datalist
+    item_names = db.session.query(Item.name).order_by(Item.name).all()
 
     # Paginate results - now based on transactions
     pagination = query.paginate(page=page, per_page=per_page)
@@ -88,6 +105,9 @@ def records():
         end_date=end_date,
         refcode=refcode,
         customer=customer,
+        item_name=item_name,
+        sku_desc=sku_desc,
+        item_names=item_names,
         request=request,
     )
 

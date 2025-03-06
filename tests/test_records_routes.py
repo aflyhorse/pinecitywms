@@ -1,5 +1,5 @@
 import pytest
-from wms.models import Receipt, ReceiptType, Transaction, ItemSKU
+from wms.models import Receipt, ReceiptType, Transaction, ItemSKU, Item
 from wms import app, db
 
 
@@ -202,3 +202,114 @@ def test_statistics_shortcut_buttons(auth_client):
     assert b"getLastDayOfMonth" in response.data
     assert b"getFirstDayOfYear" in response.data
     assert b"getLastDayOfYear" in response.data
+
+
+@pytest.mark.usefixtures("test_item", "test_another_item")
+def test_records_item_and_sku_filtering(auth_client, test_warehouse):
+    # This test checks the newly added item name and SKU description filtering capabilities
+
+    # Setup test data with distinct item names, brands and specs
+    with app.app_context():
+        # Get our test items
+        sku1 = ItemSKU.query.first()  # First test item
+        sku2 = ItemSKU.query.filter(ItemSKU.id != sku1.id).first()  # Second test item
+
+        # Create stockin receipts with unique refcodes for clearer testing
+        # Receipt for first item
+        receipt1 = Receipt(
+            operator_id=1,  # admin user
+            refcode="FILTER-TEST-ITEM1",  # Unique refcode for first item
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKIN,
+        )
+        db.session.add(receipt1)
+        db.session.flush()
+        transaction1 = Transaction(
+            itemSKU=sku1, count=10, price=100.00, receipt=receipt1
+        )
+        db.session.add(transaction1)
+
+        # Receipt for second item with different item name
+        receipt2 = Receipt(
+            operator_id=1,  # admin user
+            refcode="FILTER-TEST-ITEM2",  # Unique refcode for second item
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKIN,
+        )
+        db.session.add(receipt2)
+        db.session.flush()
+        transaction2 = Transaction(itemSKU=sku2, count=5, price=50.00, receipt=receipt2)
+        db.session.add(transaction2)
+
+        db.session.commit()
+
+        # Store item names for assertions
+        item1_name = sku1.item.name
+
+    # Test filtering by item name
+    response = auth_client.get(f"/records?item_name={item1_name}&type=stockin")
+    assert response.status_code == 200
+    # Check that the first item's refcode is in the response
+    assert b"FILTER-TEST-ITEM1" in response.data
+    # Check that the second item's refcode is not in the response
+    assert b"FILTER-TEST-ITEM2" not in response.data
+
+    # Test that datalist for item names is included in the response
+    response = auth_client.get("/records")
+    assert response.status_code == 200
+    assert b'<datalist id="item-names">' in response.data
+
+    # Test combining multiple filters
+    response = auth_client.get(
+        f"/records?item_name={item1_name}&type=stockin&warehouse={test_warehouse}"
+    )
+    assert response.status_code == 200
+    assert b"FILTER-TEST-ITEM1" in response.data
+    assert b"FILTER-TEST-ITEM2" not in response.data
+
+    # Add test for the sku_desc filter with unique values
+    with app.app_context():
+        # Create a new item with a unique brand for testing sku_desc filter
+        new_item = Item(name="Unique Filter Item")
+        db.session.add(new_item)
+        db.session.flush()
+
+        unique_sku = ItemSKU(
+            item=new_item,
+            brand="UNIQUE-BRAND-FOR-TESTING",
+            spec="UNIQUE-SPEC-FOR-TESTING",
+        )
+        db.session.add(unique_sku)
+        db.session.flush()
+
+        # Create a receipt for this unique SKU
+        unique_receipt = Receipt(
+            operator_id=1,
+            refcode="UNIQUE-FILTER-SKU-TEST",
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKIN,
+        )
+        db.session.add(unique_receipt)
+        db.session.flush()
+
+        unique_transaction = Transaction(
+            itemSKU=unique_sku, count=3, price=75.00, receipt=unique_receipt
+        )
+        db.session.add(unique_transaction)
+        db.session.commit()
+
+    # Test filtering by unique brand
+    response = auth_client.get(
+        "/records?sku_desc=UNIQUE-BRAND-FOR-TESTING&type=stockin"
+    )
+    assert response.status_code == 200
+    assert b"UNIQUE-FILTER-SKU-TEST" in response.data
+    assert b"FILTER-TEST-ITEM1" not in response.data
+    assert b"FILTER-TEST-ITEM2" not in response.data
+
+    # Test filtering by unique spec
+    response = auth_client.get("/records?sku_desc=UNIQUE-SPEC-FOR-TESTING&type=stockin")
+    assert response.status_code == 200
+    assert b"UNIQUE-FILTER-SKU-TEST" in response.data
+    assert b"FILTER-TEST-ITEM1" not in response.data
+    assert b"FILTER-TEST-ITEM2" not in response.data
