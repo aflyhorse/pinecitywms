@@ -22,7 +22,14 @@ class LoginForm(FlaskForm):
 
 
 class ItemSearchForm(FlaskForm):
-    name = StringField("物品名称", render_kw={"placeholder": "物品名称"})
+    name = StringField(
+        "物品名称",
+        render_kw={
+            "placeholder": "物品名称",
+            "list": "item-names",
+            "autocomplete": "off"
+        }
+    )
     brand = StringField("品牌", render_kw={"placeholder": "品牌"})
     spec = StringField("规格", render_kw={"placeholder": "规格"})
     submit = SubmitField("搜索")

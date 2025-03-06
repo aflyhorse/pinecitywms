@@ -1,6 +1,6 @@
-from flask import render_template, url_for, redirect, flash, session, request
+from flask import render_template, url_for, redirect, flash, request
 from flask_login import login_required
-from sqlalchemy import select
+from sqlalchemy import select, distinct
 from wms import app, db
 from wms.utils import admin_required
 from wms.models import Item, ItemSKU
@@ -11,17 +11,18 @@ from wms.forms import ItemSearchForm, ItemCreateForm
 @login_required
 @admin_required
 def item():
+    # Get all unique item names for datalist
+    item_names = (
+        db.session.execute(select(distinct(Item.name)).order_by(Item.name))
+        .scalars()
+        .all()
+    )
+
     form = ItemSearchForm()
     query = select(ItemSKU).join(Item)  # Always join with Item for sorting
 
     if form.validate_on_submit():
-        # Store search parameters in session and start from page 1
-        session["item_search"] = {
-            "name": form.name.data,
-            "brand": form.brand.data,
-            "spec": form.spec.data,
-        }
-        # Redirect to GET request with page 1
+        # Redirect to GET request with search parameters
         return redirect(
             url_for(
                 "item",
@@ -31,12 +32,11 @@ def item():
                 page=1,
             )
         )
-    elif request.method == "GET":
-        # Restore form data from session or request args
-        saved_search = session.get("item_search", {})
-        form.name.data = request.args.get("name", saved_search.get("name", ""))
-        form.brand.data = request.args.get("brand", saved_search.get("brand", ""))
-        form.spec.data = request.args.get("spec", saved_search.get("spec", ""))
+
+    # Get search parameters from query string
+    form.name.data = request.args.get("name", "")
+    form.brand.data = request.args.get("brand", "")
+    form.spec.data = request.args.get("spec", "")
 
     # Apply filters if there's search data
     if form.name.data:
@@ -51,7 +51,12 @@ def item():
 
     page = 1 if request.args.get("page") is None else int(request.args.get("page"))
     items_pag = db.paginate(query, page=page)
-    return render_template("item.html.jinja", pagination=items_pag, itemSearchForm=form)
+    return render_template(
+        "item.html.jinja",
+        pagination=items_pag,
+        itemSearchForm=form,
+        item_names=item_names,
+    )
 
 
 @app.route("/item/create", methods=["GET", "POST"])

@@ -14,13 +14,20 @@ from wms.models import (
 )
 from datetime import datetime
 from sqlalchemy.orm import joinedload
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, select, distinct
 
 
 @app.route("/records", methods=["GET"])
 @login_required
 @admin_required
 def records():
+    # Get all unique item names for datalist
+    item_names = (
+        db.session.execute(select(distinct(Item.name)).order_by(Item.name))
+        .scalars()
+        .all()
+    )
+
     # Get filter parameters from request
     record_type = request.args.get(
         "type", "stockout"
@@ -88,9 +95,6 @@ def records():
 
     # Get all warehouses for the filter dropdown
     warehouses = Warehouse.query.all()
-
-    # Get all item names for datalist
-    item_names = db.session.query(Item.name).order_by(Item.name).all()
 
     # Paginate results - now based on transactions
     pagination = query.paginate(page=page, per_page=per_page)

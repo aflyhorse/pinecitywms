@@ -1,4 +1,4 @@
-from flask import render_template, url_for, redirect, flash, request, session
+from flask import render_template, url_for, redirect, flash, request
 from flask_login import login_required, current_user
 from wms import app, db
 from wms.utils import admin_required
@@ -61,13 +61,7 @@ def inventory():
         )
 
         if form.validate_on_submit():
-            # Store search parameters in session and start from page 1
-            session["inventory_search"] = {
-                "name": form.name.data,
-                "brand": form.brand.data,
-                "spec": form.spec.data,
-            }
-            # Redirect to GET request with page 1
+            # Redirect to GET request with search parameters
             return redirect(
                 url_for(
                     "inventory",
@@ -75,23 +69,22 @@ def inventory():
                     name=form.name.data,
                     brand=form.brand.data,
                     spec=form.spec.data,
-                    page=1,
+                    page=1,  # Reset to page 1 when searching
                 )
             )
-        elif request.method == "GET":
-            # Restore form data from session or request args
-            saved_search = session.get("inventory_search", {})
-            form.name.data = request.args.get("name", saved_search.get("name", ""))
-            form.brand.data = request.args.get("brand", saved_search.get("brand", ""))
-            form.spec.data = request.args.get("spec", saved_search.get("spec", ""))
 
-            # Apply filters if there's search data
-            if form.name.data:
-                query = query.filter(Item.name.ilike(f"%{form.name.data}%"))
-            if form.brand.data:
-                query = query.filter(ItemSKU.brand.ilike(f"%{form.brand.data}%"))
-            if form.spec.data:
-                query = query.filter(ItemSKU.spec.ilike(f"%{form.spec.data}%"))
+        # Get search parameters from query string
+        form.name.data = request.args.get("name", "")
+        form.brand.data = request.args.get("brand", "")
+        form.spec.data = request.args.get("spec", "")
+
+        # Apply filters if there's search data
+        if form.name.data:
+            query = query.filter(Item.name.ilike(f"%{form.name.data}%"))
+        if form.brand.data:
+            query = query.filter(ItemSKU.brand.ilike(f"%{form.brand.data}%"))
+        if form.spec.data:
+            query = query.filter(ItemSKU.spec.ilike(f"%{form.spec.data}%"))
 
         # Add ordering
         query = query.order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
