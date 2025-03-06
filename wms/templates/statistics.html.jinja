@@ -1,0 +1,168 @@
+{% extends "base.html.jinja" %}
+{% block content %}
+<div class="container p-5 my-5">
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>出库统计</h3>
+            <form method="get" id="statistics-form" class="row g-3 align-items-end mb-3">
+                <div class="col-md-3">
+                    <label class="form-label">开始日期</label>
+                    <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">结束日期</label>
+                    <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">查询</button>
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="current-year">本年</button>
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="last-year">去年</button>
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="current-month">本月</button>
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="last-month">上月</button>
+                </div>
+            </form>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>客户 / 仓库</th>
+                            {% for warehouse in warehouses %}
+                                <th>{{ warehouse.name }}</th>
+                            {% endfor %}
+                            <th>全部仓库</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for customer_type, customers in customers_by_type.items() %}
+                            <tr class="table-secondary">
+                                <td colspan="{{ warehouses|length + 2 }}"><strong>{{ customer_type|replace("PUBLICAREA", "公共区域")|replace("DEPARTMENT", "部门")|replace("GROUP", "班组") }}</strong></td>
+                            </tr>
+                            {% for customer in customers %}
+                                <tr>
+                                    <td>{{ customer.name }}</td>
+                                    {% for warehouse in warehouses %}
+                                        <td class="text-end">
+                                            {% if stats_data.warehouses[warehouse.id].customers[customer.id] > 0 %}
+                                                {{ "%.2f"|format(stats_data.warehouses[warehouse.id].customers[customer.id]) }}
+                                            {% endif %}
+                                        </td>
+                                    {% endfor %}
+                                    <td class="text-end table-light">
+                                        {% if stats_data.total_by_customer[customer.id] > 0 %}
+                                            <strong>{{ "%.2f"|format(stats_data.total_by_customer[customer.id]) }}</strong>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-secondary">
+                        <tr>
+                            <td><strong>全部客户</strong></td>
+                            {% for warehouse in warehouses %}
+                                <td class="text-end">
+                                    {% if stats_data.total_by_warehouse[warehouse.id] > 0 %}
+                                        <strong>{{ "%.2f"|format(stats_data.total_by_warehouse[warehouse.id]) }}</strong>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                            <td class="text-end table-warning">
+                                <strong>{{ "%.2f"|format(stats_data.grand_total) }}</strong>
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+    {{ super() }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Date utility functions
+            function formatDate(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            
+            function getFirstDayOfMonth(year, month) {
+                return new Date(year, month - 1, 1);
+            }
+            
+            function getLastDayOfMonth(year, month) {
+                return new Date(year, month, 0);
+            }
+            
+            function getFirstDayOfYear(year) {
+                return new Date(year, 0, 1);
+            }
+            
+            function getLastDayOfYear(year) {
+                return new Date(year, 11, 31);
+            }
+            
+            // Current date values
+            const currentYear = {{ current_year }};
+            const currentMonth = {{ current_month }};
+            
+            // Form references
+            const form = document.getElementById('statistics-form');
+            const startDateInput = form.querySelector('input[name="start_date"]');
+            const endDateInput = form.querySelector('input[name="end_date"]');
+            
+            // Button references
+            const currentYearBtn = document.getElementById('current-year');
+            const lastYearBtn = document.getElementById('last-year');
+            const currentMonthBtn = document.getElementById('current-month');
+            const lastMonthBtn = document.getElementById('last-month');
+            
+            // Button event handlers
+            currentYearBtn.addEventListener('click', function() {
+                startDateInput.value = formatDate(getFirstDayOfYear(currentYear));
+                endDateInput.value = formatDate(getLastDayOfYear(currentYear));
+                form.submit();
+            });
+            
+            lastYearBtn.addEventListener('click', function() {
+                startDateInput.value = formatDate(getFirstDayOfYear(currentYear - 1));
+                endDateInput.value = formatDate(getLastDayOfYear(currentYear - 1));
+                form.submit();
+            });
+            
+            currentMonthBtn.addEventListener('click', function() {
+                startDateInput.value = formatDate(getFirstDayOfMonth(currentYear, currentMonth));
+                endDateInput.value = formatDate(getLastDayOfMonth(currentYear, currentMonth));
+                form.submit();
+            });
+            
+            lastMonthBtn.addEventListener('click', function() {
+                // Calculate last month (accounting for year change)
+                let lastMonthYear = currentYear;
+                let lastMonth = currentMonth - 1;
+                if (lastMonth === 0) {
+                    lastMonth = 12;
+                    lastMonthYear--;
+                }
+                
+                startDateInput.value = formatDate(getFirstDayOfMonth(lastMonthYear, lastMonth));
+                endDateInput.value = formatDate(getLastDayOfMonth(lastMonthYear, lastMonth));
+                form.submit();
+            });
+        });
+    </script>
+{% endblock scripts %}
