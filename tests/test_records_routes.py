@@ -2,6 +2,7 @@ import pytest
 from wms.models import Receipt, ReceiptType, Transaction, ItemSKU, Item, User, Warehouse
 from werkzeug.security import generate_password_hash
 from wms import app, db
+from datetime import datetime
 
 
 @pytest.mark.usefixtures("test_item")
@@ -417,3 +418,139 @@ def test_records_item_and_sku_filtering(auth_client, test_warehouse):
     assert b"UNIQUE-FILTER-SKU-TEST" in response.data
     assert b"FILTER-TEST-ITEM1" not in response.data
     assert b"FILTER-TEST-ITEM2" not in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_export_records(auth_client, test_warehouse, test_customer):
+    # Create test data and store necessary values
+    item_name = None
+    sku_brand = None
+
+    with app.app_context():
+        sku = ItemSKU.query.first()
+        # Store values we'll need later while in session
+        item_name = sku.item.name
+        sku_brand = sku.brand
+
+        # Create a stockin receipt
+        stockin_receipt = Receipt(
+            operator_id=1,  # admin user
+            refcode="EXPORT-TEST-IN",
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKIN,
+        )
+        db.session.add(stockin_receipt)
+        db.session.flush()
+
+        # Add transaction to stockin
+        stockin_trans = Transaction(
+            itemSKU=sku, count=10, price=100.00, receipt=stockin_receipt
+        )
+        db.session.add(stockin_trans)
+
+        # Create a stockout receipt
+        stockout_receipt = Receipt(
+            operator_id=1,
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKOUT,
+            customer_id=test_customer["area"],
+        )
+        db.session.add(stockout_receipt)
+        db.session.flush()
+
+        # Add transaction to stockout
+        stockout_trans = Transaction(
+            itemSKU=sku, count=-5, price=120.00, receipt=stockout_receipt
+        )
+        db.session.add(stockout_trans)
+        db.session.commit()
+
+    # Test export stockin records
+    response = auth_client.get("/export_records?type=stockin")
+    assert response.status_code == 200
+    assert (
+        response.mimetype
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert response.headers["Content-Disposition"].startswith(
+        "attachment; filename=records_"
+    )
+    assert isinstance(response.data, bytes)
+
+    # Test export stockout records
+    response = auth_client.get("/export_records?type=stockout")
+    assert response.status_code == 200
+    assert (
+        response.mimetype
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert response.headers["Content-Disposition"].startswith(
+        "attachment; filename=records_"
+    )
+    assert isinstance(response.data, bytes)
+
+    # Test with warehouse filter
+    response = auth_client.get(
+        f"/export_records?type=stockin&warehouse={test_warehouse}"
+    )
+    assert response.status_code == 200
+    assert "records_Test Warehouse_" in response.headers["Content-Disposition"]
+
+    # Test with date range
+    today = datetime.now().strftime("%Y-%m-%d")
+    response = auth_client.get(
+        f"/export_records?type=stockout&start_date={today}&end_date={today}"
+    )
+    assert response.status_code == 200
+
+    # Test with customer filter for stockout
+    response = auth_client.get("/export_records?type=stockout&customer=Test")
+    assert response.status_code == 200
+
+    # Test with item name filter
+    response = auth_client.get(f"/export_records?item_name={item_name}")
+    assert response.status_code == 200
+
+    # Test with SKU description filter
+    response = auth_client.get(f"/export_records?sku_desc={sku_brand}")
+    assert response.status_code == 200
+
+
+@pytest.mark.usefixtures("test_item")
+def test_export_records_access_control(client, regular_user, regular_warehouse):
+    # Login as regular user
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+
+    # Regular user should be able to export records
+    response = client.get("/export_records")
+    assert response.status_code == 200
+    assert (
+        response.mimetype
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    # Create another warehouse that the user shouldn't have access to
+    with app.app_context():
+        other_user = User(
+            username="otherwarehouse",
+            nickname="Other Warehouse Owner",
+            password_hash=generate_password_hash("password123"),
+            is_admin=False,
+        )
+        db.session.add(other_user)
+        db.session.flush()
+
+        other_warehouse = Warehouse(name="Other Warehouse", owner=other_user)
+        db.session.add(other_warehouse)
+        db.session.commit()
+
+        other_warehouse_id = other_warehouse.id
+
+    # Try to export from unauthorized warehouse - should silently exclude unauthorized data
+    response = client.get(f"/export_records?warehouse={other_warehouse_id}")
+    assert (
+        response.status_code == 200
+    )  # Should still work but exclude unauthorized data

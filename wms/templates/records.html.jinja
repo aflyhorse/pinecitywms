@@ -66,6 +66,7 @@
                     {% endif %}
                     <div class="col-md-2">
                         <button type="submit" class="btn btn-primary">查询</button>
+                        <a href="{{ url_for('export_records') }}{{ '?' + request.query_string.decode() if request.query_string }}" class="btn btn-success">导出</a>
                     </div>
                 </div>
             </form>

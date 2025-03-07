@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for
+from flask import render_template, request, redirect, url_for, send_file
 from flask_login import login_required, current_user
 from wms import app, db
 from wms.utils import admin_required
@@ -15,6 +15,8 @@ from wms.models import (
 from datetime import datetime
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func, and_, select, distinct
+from openpyxl import Workbook
+from io import BytesIO
 
 
 @app.route("/records", methods=["GET"])
@@ -260,4 +262,152 @@ def statistics_fee():
         stats_data=stats_data,
         current_year=current_year,
         current_month=current_month,
+    )
+
+
+@app.route("/export_records")
+@login_required
+def export_records():
+    # Get filter parameters from request - same as records route
+    record_type = request.args.get("type", "stockout")
+    warehouse_id = request.args.get("warehouse")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    refcode = request.args.get("refcode")
+    customer = request.args.get("customer")
+    item_name = request.args.get("item_name")
+    sku_desc = request.args.get("sku_desc")
+
+    # Get warehouses accessible by the current user - same as records route
+    if current_user.is_admin:
+        warehouses = Warehouse.query.all()
+    else:
+        warehouses = Warehouse.query.filter(
+            (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
+        ).all()
+
+    # Query base - join necessary relationships
+    query = (
+        db.session.query(Transaction)
+        .join(Receipt)
+        .join(Warehouse)
+        .join(ItemSKU)
+        .join(Item)
+        .options(
+            joinedload(Transaction.receipt).joinedload(Receipt.warehouse),
+            joinedload(Transaction.receipt).joinedload(Receipt.operator),
+            joinedload(Transaction.receipt).joinedload(Receipt.customer),
+            joinedload(Transaction.itemSKU).joinedload(ItemSKU.item),
+        )
+        .order_by(Receipt.date.desc(), Transaction.id.asc())
+    )
+
+    # Apply all the same filters as the records route
+    if not current_user.is_admin:
+        query = query.filter(
+            (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
+        )
+
+    if record_type == "stockin":
+        query = query.filter(Receipt.type == ReceiptType.STOCKIN)
+    else:
+        query = query.filter(Receipt.type == ReceiptType.STOCKOUT)
+        if customer:
+            query = query.join(Customer).filter(Customer.name.ilike(f"%{customer}%"))
+
+    if warehouse_id:
+        if not current_user.is_admin:
+            allowed_warehouse_ids = [w.id for w in warehouses]
+            if int(warehouse_id) not in allowed_warehouse_ids:
+                warehouse_id = None
+
+        if warehouse_id:
+            query = query.filter(Receipt.warehouse_id == warehouse_id)
+
+    if start_date:
+        start_datetime = datetime.strptime(
+            f"{start_date} 00:00:00", "%Y-%m-%d %H:%M:%S"
+        )
+        query = query.filter(Receipt.date >= start_datetime)
+
+    if end_date:
+        end_datetime = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S")
+        query = query.filter(Receipt.date <= end_datetime)
+
+    if refcode and record_type == "stockin":
+        query = query.filter(Receipt.refcode.ilike(f"%{refcode}%"))
+
+    if item_name:
+        query = query.filter(Item.name.ilike(f"%{item_name}%"))
+
+    if sku_desc:
+        query = query.filter(
+            (ItemSKU.brand.ilike(f"%{sku_desc}%"))
+            | (ItemSKU.spec.ilike(f"%{sku_desc}%"))
+        )
+
+    # Get all results for export
+    transactions = query.all()
+
+    # Create Excel workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "操作记录"
+
+    # Write headers
+    headers = ["日期", "物品", "规格", "数量", "价格", "仓库"]
+    if record_type == "stockin":
+        headers.append("单号")
+    else:
+        headers.extend(["操作员", "客户"])
+
+    for col, header in enumerate(headers, start=1):
+        ws.cell(row=1, column=col, value=header)
+
+    # Write data
+    for row, trans in enumerate(transactions, start=2):
+        ws.cell(row=row, column=1, value=trans.receipt.date.strftime("%Y-%m-%d %H:%M"))
+        ws.cell(row=row, column=2, value=trans.itemSKU.item.name)
+        ws.cell(
+            row=row, column=3, value=f"{trans.itemSKU.brand} - {trans.itemSKU.spec}"
+        )
+        ws.cell(
+            row=row,
+            column=4,
+            value=trans.count if record_type == "stockin" else -trans.count,
+        )
+        ws.cell(row=row, column=5, value=float(trans.price))
+        ws.cell(row=row, column=6, value=trans.receipt.warehouse.name)
+
+        if record_type == "stockin":
+            ws.cell(row=row, column=7, value=trans.receipt.refcode)
+        else:
+            ws.cell(row=row, column=7, value=trans.receipt.operator.nickname)
+            customer_name = (
+                trans.receipt.customer.name if trans.receipt.customer else ""
+            )
+            ws.cell(row=row, column=8, value=customer_name)
+
+    # Save to BytesIO
+    excel_file = BytesIO()
+    wb.save(excel_file)
+    excel_file.seek(0)
+
+    # Get warehouse name for filename
+    warehouse_name = "全部仓库"
+    if warehouse_id:
+        warehouse = next((w for w in warehouses if w.id == int(warehouse_id)), None)
+        if warehouse:
+            warehouse_name = warehouse.name
+
+    # Generate filename based on current datetime and warehouse
+    filename = (
+        f"records_{warehouse_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    )
+
+    return send_file(
+        excel_file,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
     )
