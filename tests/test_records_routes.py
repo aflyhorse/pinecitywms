@@ -1,19 +1,123 @@
 import pytest
-from wms.models import Receipt, ReceiptType, Transaction, ItemSKU, Item
+from wms.models import Receipt, ReceiptType, Transaction, ItemSKU, Item, User, Warehouse
+from werkzeug.security import generate_password_hash
 from wms import app, db
 
 
 @pytest.mark.usefixtures("test_item")
-def test_records_access_control(client, regular_user):
-    # Test access as non-admin user
+def test_records_access_control(client, regular_user, regular_warehouse):
+    # Test access as regular (non-admin) user
     client.post(
         "/login",
         data={"username": "testuser", "password": "password123", "remember": "y"},
     )
 
+    # Regular user should be able to access records page now
     response = client.get("/records", follow_redirects=True)
-    assert response.status_code == 200  # Should be OK after redirect
-    assert b"Unauthorized Access" in response.get_data()
+    assert response.status_code == 200
+    assert b"Unauthorized Access" not in response.data
+    assert (
+        b"\xe6\x93\x8d\xe4\xbd\x9c\xe8\xae\xb0\xe5\xbd\x95" in response.data
+    )  # "操作记录" in UTF-8
+
+    with app.app_context():
+        # Create another user and warehouse
+        other_user = User(
+            username="otheruser",
+            nickname="Other User",
+            password_hash=generate_password_hash("password123"),
+            is_admin=False,
+        )
+        db.session.add(other_user)
+        db.session.flush()
+
+        # Create warehouse owned by the other user
+        other_warehouse = Warehouse(name="Other Warehouse", owner=other_user)
+        db.session.add(other_warehouse)
+        db.session.flush()
+
+        # Create public warehouse
+        public_warehouse = Warehouse(name="Public Warehouse", is_public=True)
+        db.session.add(public_warehouse)
+        db.session.flush()
+
+        # Get test item SKU
+        sku = ItemSKU.query.first()
+
+        # Create receipt in regular user's warehouse
+        user_receipt = Receipt(
+            operator=regular_user,
+            refcode="USER-RECORD-TEST",
+            warehouse_id=regular_warehouse,
+            type=ReceiptType.STOCKIN,
+        )
+        db.session.add(user_receipt)
+        db.session.flush()
+        user_transaction = Transaction(
+            itemSKU=sku, count=5, price=100.00, receipt=user_receipt
+        )
+        db.session.add(user_transaction)
+
+        # Create receipt in other user's warehouse
+        other_receipt = Receipt(
+            operator=other_user,
+            refcode="OTHER-RECORD-TEST",
+            warehouse_id=other_warehouse.id,
+            type=ReceiptType.STOCKIN,
+        )
+        db.session.add(other_receipt)
+        db.session.flush()
+        other_transaction = Transaction(
+            itemSKU=sku, count=10, price=50.00, receipt=other_receipt
+        )
+        db.session.add(other_transaction)
+
+        # Create receipt in public warehouse
+        public_receipt = Receipt(
+            operator=other_user,
+            refcode="PUBLIC-RECORD-TEST",
+            warehouse_id=public_warehouse.id,
+            type=ReceiptType.STOCKIN,
+        )
+        db.session.add(public_receipt)
+        db.session.flush()
+        public_transaction = Transaction(
+            itemSKU=sku, count=15, price=25.00, receipt=public_receipt
+        )
+        db.session.add(public_transaction)
+
+        db.session.commit()
+
+        # Store warehouse IDs for later assertions
+        other_warehouse_id = other_warehouse.id
+        public_warehouse_id = public_warehouse.id
+
+    # Check regular user can see records from their own warehouse
+    response = client.get(
+        f"/records?type=stockin&warehouse={regular_warehouse}", follow_redirects=True
+    )
+    assert response.status_code == 200
+    assert b"USER-RECORD-TEST" in response.data
+
+    # Check regular user cannot see records from other user's private warehouse
+    response = client.get(
+        f"/records?type=stockin&warehouse={other_warehouse_id}", follow_redirects=True
+    )
+    assert response.status_code == 200
+    assert b"OTHER-RECORD-TEST" not in response.data
+
+    # Check regular user can see records from public warehouse
+    response = client.get(
+        f"/records?type=stockin&warehouse={public_warehouse_id}", follow_redirects=True
+    )
+    assert response.status_code == 200
+    assert b"PUBLIC-RECORD-TEST" in response.data
+
+    # Verify the "All Warehouses" option is not available to regular users
+    response = client.get("/records", follow_redirects=True)
+    assert (
+        b"\xe5\x85\xa8\xe9\x83\xa8\xe4\xbb\x93\xe5\xba\x93" not in response.data
+    )  # "全部仓库" (All Warehouses) in UTF-8
 
 
 @pytest.mark.usefixtures("test_item")

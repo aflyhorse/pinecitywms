@@ -1,5 +1,5 @@
-from flask import render_template, request
-from flask_login import login_required
+from flask import render_template, request, redirect, url_for
+from flask_login import login_required, current_user
 from wms import app, db
 from wms.utils import admin_required
 from wms.models import (
@@ -19,7 +19,6 @@ from sqlalchemy import func, and_, select, distinct
 
 @app.route("/records", methods=["GET"])
 @login_required
-@admin_required
 def records():
     # Get all unique item names for datalist
     item_names = (
@@ -42,6 +41,39 @@ def records():
     page = request.args.get("page", 1, type=int)
     per_page = 20
 
+    # Get warehouses accessible by the current user
+    if current_user.is_admin:
+        warehouses = Warehouse.query.all()
+    else:
+        # Regular users can only see public warehouses and their own warehouse
+        warehouses = Warehouse.query.filter(
+            (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
+        ).all()
+
+    # For regular users, ensure a warehouse is selected
+    if not current_user.is_admin and not warehouse_id and warehouses:
+        # Default to user's own warehouse if available, otherwise first available warehouse
+        user_warehouse = next(
+            (w for w in warehouses if w.owner_id == current_user.id), None
+        )
+        default_warehouse = user_warehouse or warehouses[0] if warehouses else None
+
+        if default_warehouse:
+            # Redirect to same page with default warehouse selected
+            return redirect(
+                url_for(
+                    "records",
+                    warehouse=default_warehouse.id,
+                    type=record_type,
+                    start_date=start_date,
+                    end_date=end_date,
+                    refcode=refcode,
+                    customer=customer,
+                    item_name=item_name,
+                    sku_desc=sku_desc,
+                )
+            )
+
     # Query base - join necessary relationships
     query = (
         db.session.query(Transaction)
@@ -58,6 +90,12 @@ def records():
         .order_by(Receipt.date.desc(), Transaction.id.asc())
     )
 
+    # Filter by user's warehouse access if not admin
+    if not current_user.is_admin:
+        query = query.filter(
+            (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
+        )
+
     # Apply filters
     if record_type == "stockin":
         query = query.filter(Receipt.type == ReceiptType.STOCKIN)
@@ -68,7 +106,14 @@ def records():
             query = query.join(Customer).filter(Customer.name.ilike(f"%{customer}%"))
 
     if warehouse_id:
-        query = query.filter(Receipt.warehouse_id == warehouse_id)
+        # For non-admins, ensure they can only access their warehouse or public warehouses
+        if not current_user.is_admin:
+            allowed_warehouse_ids = [w.id for w in warehouses]
+            if int(warehouse_id) not in allowed_warehouse_ids:
+                warehouse_id = None
+
+        if warehouse_id:
+            query = query.filter(Receipt.warehouse_id == warehouse_id)
 
     if start_date:
         start_datetime = datetime.strptime(
@@ -92,9 +137,6 @@ def records():
             (ItemSKU.brand.ilike(f"%{sku_desc}%"))
             | (ItemSKU.spec.ilike(f"%{sku_desc}%"))
         )
-
-    # Get all warehouses for the filter dropdown
-    warehouses = Warehouse.query.all()
 
     # Paginate results - now based on transactions
     pagination = query.paginate(page=page, per_page=per_page)
