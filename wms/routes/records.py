@@ -116,10 +116,10 @@ def records():
     )
 
 
-@app.route("/statistics", methods=["GET"])
+@app.route("/statistics_fee", methods=["GET"])
 @login_required
 @admin_required
-def statistics():
+def statistics_fee():
     # Get filter parameters from request
     start_date = request.args.get("start_date", "")
     end_date = request.args.get("end_date", "")
@@ -209,7 +209,7 @@ def statistics():
             stats_data["grand_total"] += float(total_value)
 
     return render_template(
-        "statistics.html.jinja",
+        "statistics_fee.html.jinja",
         start_date=start_date,
         end_date=end_date,
         warehouses=warehouses,

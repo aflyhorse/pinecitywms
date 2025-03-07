@@ -126,7 +126,7 @@ def test_statistics_access_control(client, regular_user):
         data={"username": "testuser", "password": "password123", "remember": "y"},
     )
 
-    response = client.get("/statistics", follow_redirects=True)
+    response = client.get("/statistics_fee", follow_redirects=True)
     assert response.status_code == 200  # Should be OK after redirect
     assert b"Unauthorized Access" in response.data
 
@@ -134,7 +134,7 @@ def test_statistics_access_control(client, regular_user):
 @pytest.mark.usefixtures("test_item")
 def test_statistics_page_access(auth_client):
     # Test statistics page access
-    response = auth_client.get("/statistics")
+    response = auth_client.get("/statistics_fee")
     assert response.status_code == 200
     # Check for key elements on the page
     assert b"start_date" in response.data
@@ -173,7 +173,7 @@ def test_statistics_date_filtering(auth_client, test_warehouse, test_customer):
     end_date = today.strftime("%Y-%m-%d")
 
     response = auth_client.get(
-        f"/statistics?start_date={start_date}&end_date={end_date}"
+        f"/statistics_fee?start_date={start_date}&end_date={end_date}"
     )
     assert response.status_code == 200
 
@@ -188,7 +188,7 @@ def test_statistics_date_filtering(auth_client, test_warehouse, test_customer):
 @pytest.mark.usefixtures("test_item")
 def test_statistics_shortcut_buttons(auth_client):
     # Test statistics page with date shortcut buttons
-    response = auth_client.get("/statistics")
+    response = auth_client.get("/statistics_fee")
     assert response.status_code == 200
 
     # Check that JavaScript correctly sets up the date filter buttons
