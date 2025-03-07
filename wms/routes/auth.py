@@ -16,7 +16,7 @@ def login():
             and login_user(user, remember=form.remember.data)
         ):
             flash("登录成功。", "success")
-            return redirect(request.args.get("next") or url_for("index"))
+            return redirect(request.args.get("next") or url_for("inventory"))
         else:
             flash("用户名/密码错误。", "danger")
             return redirect(url_for("login"))
