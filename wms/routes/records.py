@@ -6,13 +6,13 @@ from wms.models import (
     Receipt,
     ReceiptType,
     Warehouse,
-    Customer,
+    Area,
+    Department,
     Transaction,
     ItemSKU,
     Item,
-    CustomerType,
 )
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func, and_, select, distinct
 from openpyxl import Workbook
@@ -37,7 +37,7 @@ def records():
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
     refcode = request.args.get("refcode")
-    customer = request.args.get("customer")
+    location_info = request.args.get("location_info")
     item_name = request.args.get("item_name")
     sku_desc = request.args.get("sku_desc")
     page = request.args.get("page", 1, type=int)
@@ -70,7 +70,7 @@ def records():
                     start_date=start_date,
                     end_date=end_date,
                     refcode=refcode,
-                    customer=customer,
+                    location_info=location_info,
                     item_name=item_name,
                     sku_desc=sku_desc,
                 )
@@ -86,7 +86,8 @@ def records():
         .options(
             joinedload(Transaction.receipt).joinedload(Receipt.warehouse),
             joinedload(Transaction.receipt).joinedload(Receipt.operator),
-            joinedload(Transaction.receipt).joinedload(Receipt.customer),
+            joinedload(Transaction.receipt).joinedload(Receipt.area),
+            joinedload(Transaction.receipt).joinedload(Receipt.department),
             joinedload(Transaction.itemSKU).joinedload(ItemSKU.item),
         )
         .order_by(Receipt.date.desc(), Transaction.id.asc())
@@ -103,9 +104,17 @@ def records():
         query = query.filter(Receipt.type == ReceiptType.STOCKIN)
     else:
         query = query.filter(Receipt.type == ReceiptType.STOCKOUT)
-        if customer:
-            # Search customer name if provided
-            query = query.join(Customer).filter(Customer.name.ilike(f"%{customer}%"))
+        if location_info:
+            # Search area or department name if provided
+            query = (
+                query.outerjoin(Area)
+                .outerjoin(Department)
+                .filter(
+                    (Area.name.ilike(f"%{location_info}%"))
+                    | (Department.name.ilike(f"%{location_info}%"))
+                    | (Receipt.location.ilike(f"%{location_info}%"))
+                )
+            )
 
     if warehouse_id:
         # For non-admins, ensure they can only access their warehouse or public warehouses
@@ -152,7 +161,7 @@ def records():
         start_date=start_date,
         end_date=end_date,
         refcode=refcode,
-        customer=customer,
+        location_info=location_info,
         item_name=item_name,
         sku_desc=sku_desc,
         item_names=item_names,
@@ -164,43 +173,60 @@ def records():
 @login_required
 @admin_required
 def statistics_fee():
-    # Get filter parameters from request
-    start_date = request.args.get("start_date", "")
-    end_date = request.args.get("end_date", "")
-
-    # Current year and month for shortcut buttons
+    # Get current year and month for default date range
     today = datetime.now()
     current_year = today.year
     current_month = today.month
 
+    # Set default date range to current month if not provided
+    start_date = request.args.get("start_date", "")
+    end_date = request.args.get("end_date", "")
+
+    # If no dates are provided, default to current month
+    if not start_date and not end_date:
+        # First day of current month
+        start_date = f"{current_year}-{current_month:02d}-01"
+
+        # Last day of current month - calculate based on the next month's first day minus one day
+        if current_month == 12:
+            next_month_year = current_year + 1
+            next_month = 1
+        else:
+            next_month_year = current_year
+            next_month = current_month + 1
+
+        # Create first day of next month
+        next_month_first = datetime(next_month_year, next_month, 1)
+        # Subtract one day to get last day of current month
+        last_day = (next_month_first - timedelta(days=1)).day
+        end_date = f"{current_year}-{current_month:02d}-{last_day}"
+
     # Initialize empty data structures
     warehouses = Warehouse.query.order_by(Warehouse.name).all()
-    customers_by_type = {}
-    all_customers = []
+    areas = Area.query.order_by(Area.name).all()
+    departments = Department.query.order_by(Department.name).all()
 
-    # Get all customers grouped by type
-    for customer_type in CustomerType:
-        customers = (
-            Customer.query.filter_by(type=customer_type).order_by(Customer.name).all()
-        )
-        customers_by_type[customer_type.name] = customers
-        all_customers.extend(customers)
-
-    # Sort all customers by name for consistent display
-    all_customers.sort(key=lambda x: x.name)
-
-    # Initialize statistics table data structure
+    # Initialize statistics data structure
     stats_data = {
-        "warehouses": {w.id: {"name": w.name, "customers": {}} for w in warehouses},
+        "warehouses": {w.id: {"name": w.name} for w in warehouses},
+        "areas": {a.id: {"name": a.name, "departments": {}, "total": 0} for a in areas},
+        "departments": {d.id: {"name": d.name, "total": 0} for d in departments},
         "total_by_warehouse": {w.id: 0 for w in warehouses},
-        "total_by_customer": {c.id: 0 for c in all_customers},
         "grand_total": 0,
     }
 
-    # Initialize each cell in the table (warehouse x customer)
+    # Initialize each cell in the warehouse × area × department structure
     for warehouse in warehouses:
-        for customer in all_customers:
-            stats_data["warehouses"][warehouse.id]["customers"][customer.id] = 0
+        stats_data["warehouses"][warehouse.id]["areas"] = {}
+        for area in areas:
+            stats_data["warehouses"][warehouse.id]["areas"][area.id] = {
+                "total": 0,
+                "departments": {},
+            }
+            for department in departments:
+                stats_data["warehouses"][warehouse.id]["areas"][area.id]["departments"][
+                    department.id
+                ] = 0
 
     # Process filter date range
     filter_conditions = [Receipt.type == ReceiptType.STOCKOUT]
@@ -215,50 +241,60 @@ def statistics_fee():
         end_datetime = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S")
         filter_conditions.append(Receipt.date <= end_datetime)
 
-    # Query for aggregated data
-    if start_date or end_date:
-        # Query aggregating transactions by warehouse and customer
-        results = (
-            db.session.query(
-                Receipt.warehouse_id,
-                Receipt.customer_id,
-                func.sum(Transaction.count * Transaction.price * -1).label(
-                    "total_value"
-                ),
-            )
-            .join(Transaction)
-            .filter(and_(*filter_conditions))
-            .group_by(Receipt.warehouse_id, Receipt.customer_id)
-            .all()
+    # Query aggregating transactions by warehouse, area, and department
+    results = (
+        db.session.query(
+            Receipt.warehouse_id,
+            Receipt.area_id,
+            Receipt.department_id,
+            func.sum(Transaction.count * Transaction.price * -1).label("total_value"),
         )
+        .join(Transaction)
+        .filter(and_(*filter_conditions))
+        .group_by(Receipt.warehouse_id, Receipt.area_id, Receipt.department_id)
+        .all()
+    )
 
-        # Populate the statistics data structure
-        for warehouse_id, customer_id, total_value in results:
-            # Skip entries with no customer (shouldn't happen for STOCKOUT)
-            if not customer_id:
-                continue  # pragma: no cover
+    # Populate the statistics data structure
+    for warehouse_id, area_id, department_id, total_value in results:
+        # Skip entries with no area or department
+        if not area_id or not department_id:
+            continue
 
-            # Update cell value
-            stats_data["warehouses"][warehouse_id]["customers"][customer_id] = float(
-                total_value
-            )
+        value = float(total_value)
 
-            # Update row total (by warehouse)
-            stats_data["total_by_warehouse"][warehouse_id] += float(total_value)
+        # Update values in the nested structure
+        stats_data["warehouses"][warehouse_id]["areas"][area_id]["departments"][
+            department_id
+        ] = value
 
-            # Update column total (by customer)
-            stats_data["total_by_customer"][customer_id] += float(total_value)
+        # Update area total for this warehouse
+        stats_data["warehouses"][warehouse_id]["areas"][area_id]["total"] += value
 
-            # Update grand total
-            stats_data["grand_total"] += float(total_value)
+        # Update warehouse total
+        stats_data["total_by_warehouse"][warehouse_id] += value
+
+        # Update area total
+        stats_data["areas"][area_id]["total"] += value
+
+        # Update department total
+        stats_data["departments"][department_id]["total"] += value
+
+        # Update area's department structure (for the area tab)
+        if department_id not in stats_data["areas"][area_id]["departments"]:
+            stats_data["areas"][area_id]["departments"][department_id] = 0
+        stats_data["areas"][area_id]["departments"][department_id] += value
+
+        # Update grand total
+        stats_data["grand_total"] += value
 
     return render_template(
         "statistics_fee.html.jinja",
         start_date=start_date,
         end_date=end_date,
         warehouses=warehouses,
-        customers_by_type=customers_by_type,
-        all_customers=all_customers,
+        areas=areas,
+        departments=departments,
         stats_data=stats_data,
         current_year=current_year,
         current_month=current_month,
@@ -274,7 +310,7 @@ def export_records():
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
     refcode = request.args.get("refcode")
-    customer = request.args.get("customer")
+    location_info = request.args.get("location_info")
     item_name = request.args.get("item_name")
     sku_desc = request.args.get("sku_desc")
 
@@ -296,7 +332,8 @@ def export_records():
         .options(
             joinedload(Transaction.receipt).joinedload(Receipt.warehouse),
             joinedload(Transaction.receipt).joinedload(Receipt.operator),
-            joinedload(Transaction.receipt).joinedload(Receipt.customer),
+            joinedload(Transaction.receipt).joinedload(Receipt.area),
+            joinedload(Transaction.receipt).joinedload(Receipt.department),
             joinedload(Transaction.itemSKU).joinedload(ItemSKU.item),
         )
         .order_by(Receipt.date.desc(), Transaction.id.asc())
@@ -312,8 +349,16 @@ def export_records():
         query = query.filter(Receipt.type == ReceiptType.STOCKIN)
     else:
         query = query.filter(Receipt.type == ReceiptType.STOCKOUT)
-        if customer:
-            query = query.join(Customer).filter(Customer.name.ilike(f"%{customer}%"))
+        if location_info:
+            query = (
+                query.outerjoin(Area)
+                .outerjoin(Department)
+                .filter(
+                    (Area.name.ilike(f"%{location_info}%"))
+                    | (Department.name.ilike(f"%{location_info}%"))
+                    | (Receipt.location.ilike(f"%{location_info}%"))
+                )
+            )
 
     if warehouse_id:
         if not current_user.is_admin:
@@ -359,7 +404,7 @@ def export_records():
     if record_type == "stockin":
         headers.append("单号")
     else:
-        headers.extend(["操作员", "客户"])
+        headers.extend(["操作员", "区域", "部门", "具体地点"])
 
     for col, header in enumerate(headers, start=1):
         ws.cell(row=1, column=col, value=header)
@@ -383,10 +428,14 @@ def export_records():
             ws.cell(row=row, column=7, value=trans.receipt.refcode)
         else:
             ws.cell(row=row, column=7, value=trans.receipt.operator.nickname)
-            customer_name = (
-                trans.receipt.customer.name if trans.receipt.customer else ""
+            area_name = trans.receipt.area.name if trans.receipt.area else ""
+            ws.cell(row=row, column=8, value=area_name)
+            department_name = (
+                trans.receipt.department.name if trans.receipt.department else ""
             )
-            ws.cell(row=row, column=8, value=customer_name)
+            ws.cell(row=row, column=9, value=department_name)
+            location = trans.receipt.location or ""
+            ws.cell(row=row, column=10, value=location)
 
     # Save to BytesIO
     excel_file = BytesIO()

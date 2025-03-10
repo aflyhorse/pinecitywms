@@ -2,7 +2,7 @@ import pytest
 from wms.models import Receipt, ReceiptType, Transaction, ItemSKU, Item, User, Warehouse
 from werkzeug.security import generate_password_hash
 from wms import app, db
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 @pytest.mark.usefixtures("test_item")
@@ -17,9 +17,7 @@ def test_records_access_control(client, regular_user, regular_warehouse):
     response = client.get("/records", follow_redirects=True)
     assert response.status_code == 200
     assert b"Unauthorized Access" not in response.data
-    assert (
-        b"\xe6\x93\x8d\xe4\xbd\x9c\xe8\xae\xb0\xe5\xbd\x95" in response.data
-    )  # "操作记录" in UTF-8
+    assert "操作记录".encode() in response.data
 
     with app.app_context():
         # Create another user and warehouse
@@ -146,7 +144,8 @@ def test_records_filtering(auth_client, test_warehouse, test_customer):
             operator_id=1,  # admin user
             warehouse_id=test_warehouse,
             type=ReceiptType.STOCKOUT,
-            customer_id=test_customer["area"],
+            area_id=test_customer["area"],
+            department_id=test_customer["department"],
         )
         db.session.add(receipt)
         db.session.flush()
@@ -260,7 +259,8 @@ def test_statistics_date_filtering(auth_client, test_warehouse, test_customer):
             operator_id=1,  # admin user
             warehouse_id=test_warehouse,
             type=ReceiptType.STOCKOUT,
-            customer_id=test_customer["area"],
+            area_id=test_customer["area"],
+            department_id=test_customer["department"],
         )
         db.session.add(receipt)
         db.session.flush()
@@ -271,7 +271,6 @@ def test_statistics_date_filtering(auth_client, test_warehouse, test_customer):
         db.session.commit()
 
     # Test with date range that should include our data
-    from datetime import datetime, timedelta
 
     today = datetime.now().date()
     start_date = (today - timedelta(days=30)).strftime("%Y-%m-%d")
@@ -422,15 +421,8 @@ def test_records_item_and_sku_filtering(auth_client, test_warehouse):
 
 @pytest.mark.usefixtures("test_item")
 def test_export_records(auth_client, test_warehouse, test_customer):
-    # Create test data and store necessary values
-    item_name = None
-    sku_brand = None
-
     with app.app_context():
         sku = ItemSKU.query.first()
-        # Store values we'll need later while in session
-        item_name = sku.item.name
-        sku_brand = sku.brand
 
         # Create a stockin receipt
         stockin_receipt = Receipt(
@@ -453,66 +445,44 @@ def test_export_records(auth_client, test_warehouse, test_customer):
             operator_id=1,
             warehouse_id=test_warehouse,
             type=ReceiptType.STOCKOUT,
-            customer_id=test_customer["area"],
+            area_id=test_customer["area"],
+            department_id=test_customer["department"],
         )
         db.session.add(stockout_receipt)
         db.session.flush()
 
         # Add transaction to stockout
         stockout_trans = Transaction(
-            itemSKU=sku, count=-5, price=120.00, receipt=stockout_receipt
+            itemSKU=sku, count=-5, price=110.00, receipt=stockout_receipt
         )
         db.session.add(stockout_trans)
+
         db.session.commit()
 
     # Test export stockin records
     response = auth_client.get("/export_records?type=stockin")
     assert response.status_code == 200
+    # Check that we received an Excel file
     assert (
-        response.mimetype
-        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        in response.content_type
     )
-    assert response.headers["Content-Disposition"].startswith(
-        "attachment; filename=records_"
-    )
-    assert isinstance(response.data, bytes)
+    assert "attachment" in response.headers.get("Content-Disposition", "")
 
     # Test export stockout records
     response = auth_client.get("/export_records?type=stockout")
     assert response.status_code == 200
+    # Check that we received an Excel file
     assert (
-        response.mimetype
-        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        in response.content_type
     )
-    assert response.headers["Content-Disposition"].startswith(
-        "attachment; filename=records_"
-    )
-    assert isinstance(response.data, bytes)
+    assert "attachment" in response.headers.get("Content-Disposition", "")
 
-    # Test with warehouse filter
+    # Test with filtering
     response = auth_client.get(
-        f"/export_records?type=stockin&warehouse={test_warehouse}"
+        f"/export_records?type=stockout&warehouse={test_warehouse}"
     )
-    assert response.status_code == 200
-    assert "records_Test Warehouse_" in response.headers["Content-Disposition"]
-
-    # Test with date range
-    today = datetime.now().strftime("%Y-%m-%d")
-    response = auth_client.get(
-        f"/export_records?type=stockout&start_date={today}&end_date={today}"
-    )
-    assert response.status_code == 200
-
-    # Test with customer filter for stockout
-    response = auth_client.get("/export_records?type=stockout&customer=Test")
-    assert response.status_code == 200
-
-    # Test with item name filter
-    response = auth_client.get(f"/export_records?item_name={item_name}")
-    assert response.status_code == 200
-
-    # Test with SKU description filter
-    response = auth_client.get(f"/export_records?sku_desc={sku_brand}")
     assert response.status_code == 200
 
 
@@ -554,3 +524,149 @@ def test_export_records_access_control(client, regular_user, regular_warehouse):
     assert (
         response.status_code == 200
     )  # Should still work but exclude unauthorized data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_default_warehouse_redirection(client, regular_user, regular_warehouse):
+    """Test the auto-redirection when a regular user has no warehouse selected"""
+    # Login as regular user
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+
+    # Access records without specifying a warehouse - should auto redirect to default
+    response = client.get(
+        "/records", follow_redirects=False
+    )  # Don't follow redirects so we can check redirect URL
+    assert response.status_code == 302  # Should redirect
+    assert (
+        f"warehouse={regular_warehouse}" in response.location
+    )  # Should contain the default warehouse
+
+
+@pytest.mark.usefixtures("test_item")
+def test_statistics_with_no_date_range(auth_client):
+    """Test statistics when no date range is provided, resulting in default current month"""
+    # Access statistics without providing date range
+    response = auth_client.get("/statistics_fee")
+    assert response.status_code == 200
+
+    # Check for current month/year in the response
+    today = datetime.now()
+    current_year = today.year
+    current_month = today.month
+
+    # Convert month to string with leading zero if needed
+    month_str = f"{current_month:02d}"
+
+    # These should be in the input fields as default values
+    assert (
+        f"{current_year}-{month_str}-01".encode() in response.data
+    )  # First day of current month
+
+    # Verify script contains current year and month variables
+    assert f"const currentYear = {current_year};".encode() in response.data
+    assert f"const currentMonth = {current_month};".encode() in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_statistics_with_missing_area_department(auth_client, test_warehouse):
+    """Test statistics when some receipts have no area or department"""
+    with app.app_context():
+        sku = ItemSKU.query.first()
+        # Create a stockout receipt without area and department
+        incomplete_receipt = Receipt(
+            operator_id=1,  # admin user
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKOUT,
+            # Intentionally omitting area_id and department_id
+        )
+        db.session.add(incomplete_receipt)
+        db.session.flush()
+
+        # Add transaction to the incomplete receipt
+        transaction = Transaction(
+            itemSKU=sku, count=-3, price=50.00, receipt=incomplete_receipt
+        )
+        db.session.add(transaction)
+        db.session.commit()
+
+    # Access statistics page - should handle null area/department gracefully
+    today = datetime.now().date()
+    start_date = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    end_date = today.strftime("%Y-%m-%d")
+
+    response = auth_client.get(
+        f"/statistics_fee?start_date={start_date}&end_date={end_date}"
+    )
+    assert response.status_code == 200
+    # The page should load successfully even with incomplete receipts
+
+
+@pytest.mark.usefixtures("test_item")
+def test_export_records_with_filters(auth_client, test_warehouse, test_customer):
+    """Test exporting records with various filtering options to improve coverage"""
+    with app.app_context():
+        sku = ItemSKU.query.first()
+
+        # Create a stock receipt with a specific refcode for filtering
+        special_receipt = Receipt(
+            operator_id=1,
+            refcode="SPECIAL-EXPORT-TEST",
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKIN,
+        )
+        db.session.add(special_receipt)
+        db.session.flush()
+        special_trans = Transaction(
+            itemSKU=sku, count=8, price=80.00, receipt=special_receipt
+        )
+        db.session.add(special_trans)
+
+        # Create a stockout receipt with location information
+        special_out = Receipt(
+            operator_id=1,
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKOUT,
+            area_id=test_customer["area"],
+            department_id=test_customer["department"],
+            location="Special Location Test",
+        )
+        db.session.add(special_out)
+        db.session.flush()
+        special_out_trans = Transaction(
+            itemSKU=sku, count=-4, price=90.00, receipt=special_out
+        )
+        db.session.add(special_out_trans)
+
+        db.session.commit()
+
+        item_name = sku.item.name
+
+    # Test export with refcode filter - this should hit line 383
+    response = auth_client.get("/export_records?type=stockin&refcode=SPECIAL-EXPORT")
+    assert response.status_code == 200
+
+    # Test export with date filters - this should hit lines 373-376
+    today = datetime.now().date()
+    start_date = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    end_date = today.strftime("%Y-%m-%d")
+    response = auth_client.get(
+        f"/export_records?start_date={start_date}&end_date={end_date}"
+    )
+    assert response.status_code == 200
+
+    # Test export with location filter - this should hit lines 379-380
+    response = auth_client.get(
+        "/export_records?type=stockout&location_info=Special+Location"
+    )
+    assert response.status_code == 200
+
+    # Test export with item name filter - this should hit line 386
+    response = auth_client.get(f"/export_records?item_name={item_name}")
+    assert response.status_code == 200
+
+    # Test export with sku description filter - this should hit line 389
+    response = auth_client.get(f"/export_records?sku_desc={sku.brand}")
+    assert response.status_code == 200

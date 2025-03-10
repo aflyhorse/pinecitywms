@@ -8,8 +8,8 @@ from wms.models import (
     Receipt,
     ReceiptType,
     Warehouse,
-    Customer,
-    CustomerType,
+    Area,
+    Department,
 )
 from wms import db
 from sqlalchemy.exc import IntegrityError
@@ -184,31 +184,24 @@ def test_receipt_model(client, test_user):
         assert warehouse.item_skus[0].average_price == newaverage
 
 
-def test_customer_model(client):
+def test_area_and_department_models(client):
     with client.application.app_context():
-        # Test area customer creation
-        area = Customer(
-            name="测试区域",
-            type=CustomerType.PUBLICAREA,
-        )
+        # Test area creation
+        area = Area(name="测试区域")
         db.session.add(area)
 
-        # Test department under area
-        department = Customer(name="测试部门", type=CustomerType.DEPARTMENT)
+        # Test department creation
+        department = Department(name="测试部门")
         db.session.add(department)
 
-        # Test group under department
-        group = Customer(name="测试班组", type=CustomerType.GROUP)
-        db.session.add(group)
         db.session.flush()
 
-        # Test relationships
-        assert area.type == CustomerType.PUBLICAREA
-        assert department.type == CustomerType.DEPARTMENT
-        assert group.type == CustomerType.GROUP
+        # Test properties
+        assert area.name == "测试区域"
+        assert department.name == "测试部门"
 
-        # Test unique constraint on customer name
-        duplicate_area = Customer(name="测试区域", type=CustomerType.PUBLICAREA)
+        # Test unique constraint on area name
+        duplicate_area = Area(name="测试区域")
         db.session.add(duplicate_area)
         try:
             db.session.flush()

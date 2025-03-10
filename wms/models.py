@@ -119,9 +119,13 @@ class Receipt(db.Model):
         ForeignKey("warehouse.id"), nullable=False
     )
     warehouse: Mapped[Warehouse] = relationship(back_populates="receipts")
-    # Customer for stockout receipts
-    customer_id: Mapped[int] = mapped_column(ForeignKey("customer.id"), nullable=True)
-    customer: Mapped["Customer"] = relationship("Customer")
+    # Area and Department for stockout receipts
+    area_id: Mapped[int] = mapped_column(ForeignKey("area.id"), nullable=True)
+    area: Mapped["Area"] = relationship("Area")
+    department_id: Mapped[int] = mapped_column(ForeignKey("department.id"), nullable=True)
+    department: Mapped["Department"] = relationship("Department")
+    # Specific location for stockout
+    location: Mapped[str] = mapped_column(String(30), nullable=True)
 
     @property
     def sum(self) -> float:
@@ -167,13 +171,11 @@ class Receipt(db.Model):
         db.session.commit()
 
 
-class CustomerType(enum.Enum):
-    PUBLICAREA = "公共区域"
-    DEPARTMENT = "部门"
-    GROUP = "班组"
-
-
-class Customer(db.Model):
+class Area(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
-    type: Mapped[CustomerType] = mapped_column(Enum(CustomerType), nullable=False)
+
+
+class Department(db.Model):
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)

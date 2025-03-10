@@ -89,11 +89,8 @@ class StockOutItemForm(FlaskForm):
 
 class StockOutForm(FlaskForm):
     warehouse = SelectField("仓库", coerce=int, validators=[InputRequired()])
-    customer = SelectField("客户", coerce=int, validators=[InputRequired()])
-    customer_type = SelectField(
-        "客户类型",
-        validators=[InputRequired()],
-        choices=[("PUBLICAREA", "公共区域"), ("DEPARTMENT", "部门"), ("GROUP", "班组")],
-    )
+    area = SelectField("区域", coerce=int, validators=[InputRequired()])
+    department = SelectField("部门", coerce=int, validators=[InputRequired()])
+    location = StringField("具体地点", validators=[InputRequired(), Length(1, 30)])
     items = FieldList(FormField(StockOutItemForm), min_entries=1)
     submit = SubmitField("出库")

@@ -60,8 +60,8 @@
                     </div>
                     {% else %}
                     <div class="col-md-2">
-                        <label class="form-label">客户</label>
-                        <input type="text" name="customer" class="form-control" value="{{ customer or '' }}" placeholder="搜索客户">
+                        <label class="form-label">区域或部门</label>
+                        <input type="text" name="location_info" class="form-control" value="{{ location_info or '' }}" placeholder="搜索区域或部门">
                     </div>
                     {% endif %}
                     <div class="col-md-2">
@@ -85,7 +85,9 @@
                         <th>单号</th>
                         {% else %}
                         <th>操作员</th>
-                        <th>客户</th>
+                        <th>区域</th>
+                        <th>部门</th>
+                        <th>具体地点</th>
                         {% endif %}
                     </tr>
                 </thead>
@@ -102,7 +104,9 @@
                             <td>{{ transaction.receipt.refcode }}</td>
                             {% else %}
                             <td>{{ transaction.receipt.operator.nickname }}</td>
-                            <td>{{ transaction.receipt.customer.name if transaction.receipt.customer else '' }}</td>
+                            <td>{{ transaction.receipt.area.name if transaction.receipt.area else '' }}</td>
+                            <td>{{ transaction.receipt.department.name if transaction.receipt.department else '' }}</td>
+                            <td>{{ transaction.receipt.location }}</td>
                             {% endif %}
                         </tr>
                     {% endfor %}
@@ -116,7 +120,7 @@
                         start_date=start_date,
                         end_date=end_date,
                         refcode=refcode,
-                        customer=customer,
+                        location_info=location_info,
                         item_name=item_name,
                         sku_desc=sku_desc,
                         args=request.args) }}

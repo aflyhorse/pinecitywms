@@ -31,63 +31,248 @@
             </form>
         </div>
         <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover table-sm table-bordered">
-                    <thead class="table-light">
-                        <tr>
-                            <th>客户 / 仓库</th>
-                            {% for warehouse in warehouses %}
-                                <th>{{ warehouse.name }}</th>
-                            {% endfor %}
-                            <th>全部仓库</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for customer_type, customers in customers_by_type.items() %}
-                            <tr class="table-secondary">
-                                <td colspan="{{ warehouses|length + 2 }}"><strong>{{ customer_type|replace("PUBLICAREA", "公共区域")|replace("DEPARTMENT", "部门")|replace("GROUP", "班组") }}</strong></td>
-                            </tr>
-                            {% for customer in customers %}
+            <!-- Tab navigation -->
+            <ul class="nav nav-tabs mb-3" id="statsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="area-tab" data-bs-toggle="tab" data-bs-target="#area-view" type="button" role="tab" aria-controls="area-view" aria-selected="true">按区域查看</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="department-tab" data-bs-toggle="tab" data-bs-target="#department-view" type="button" role="tab" aria-controls="department-view" aria-selected="false">按部门查看</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="detailed-tab" data-bs-toggle="tab" data-bs-target="#detailed-view" type="button" role="tab" aria-controls="detailed-view" aria-selected="false">详细视图</button>
+                </li>
+            </ul>
+            
+            <!-- Tab content -->
+            <div class="tab-content" id="statsTabContent">
+                <!-- Area View Tab -->
+                <div class="tab-pane fade show active" id="area-view" role="tabpanel" aria-labelledby="area-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm table-bordered">
+                            <thead class="table-light">
                                 <tr>
-                                    <td>{{ customer.name }}</td>
+                                    <th>区域 / 仓库</th>
+                                    {% for warehouse in warehouses %}
+                                        <th>{{ warehouse.name }}</th>
+                                    {% endfor %}
+                                    <th>全部仓库</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for area in areas %}
+                                    <tr>
+                                        <td><strong>{{ area.name }}</strong></td>
+                                        {% for warehouse in warehouses %}
+                                            <td class="text-end">
+                                                {% if stats_data.warehouses[warehouse.id].areas[area.id].total > 0 %}
+                                                    {{ "%.2f"|format(stats_data.warehouses[warehouse.id].areas[area.id].total) }}
+                                                {% endif %}
+                                            </td>
+                                        {% endfor %}
+                                        <td class="text-end table-light">
+                                            {% if stats_data.areas[area.id].total > 0 %}
+                                                <strong>{{ "%.2f"|format(stats_data.areas[area.id].total) }}</strong>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-secondary">
+                                <tr>
+                                    <td><strong>合计</strong></td>
                                     {% for warehouse in warehouses %}
                                         <td class="text-end">
-                                            {% if stats_data.warehouses[warehouse.id].customers[customer.id] > 0 %}
-                                                {{ "%.2f"|format(stats_data.warehouses[warehouse.id].customers[customer.id]) }}
+                                            {% if stats_data.total_by_warehouse[warehouse.id] > 0 %}
+                                                <strong>{{ "%.2f"|format(stats_data.total_by_warehouse[warehouse.id]) }}</strong>
                                             {% endif %}
                                         </td>
                                     {% endfor %}
-                                    <td class="text-end table-light">
-                                        {% if stats_data.total_by_customer[customer.id] > 0 %}
-                                            <strong>{{ "%.2f"|format(stats_data.total_by_customer[customer.id]) }}</strong>
-                                        {% endif %}
+                                    <td class="text-end table-warning">
+                                        <strong>{{ "%.2f"|format(stats_data.grand_total) }}</strong>
                                     </td>
                                 </tr>
-                            {% endfor %}
-                        {% endfor %}
-                    </tbody>
-                    <tfoot class="table-secondary">
-                        <tr>
-                            <td><strong>全部客户</strong></td>
-                            {% for warehouse in warehouses %}
-                                <td class="text-end">
-                                    {% if stats_data.total_by_warehouse[warehouse.id] > 0 %}
-                                        <strong>{{ "%.2f"|format(stats_data.total_by_warehouse[warehouse.id]) }}</strong>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Department View Tab - Improved to show values for each department in each warehouse -->
+                <div class="tab-pane fade" id="department-view" role="tabpanel" aria-labelledby="department-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>部门 / 仓库</th>
+                                    {% for warehouse in warehouses %}
+                                        <th>{{ warehouse.name }}</th>
+                                    {% endfor %}
+                                    <th>全部仓库</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for department in departments %}
+                                    <tr>
+                                        <td>{{ department.name }}</td>
+                                        {% set ns = namespace(dept_total=0) %}
+                                        {% for warehouse in warehouses %}
+                                            <td class="text-end">
+                                                {% set ns.dept_total = 0 %}
+                                                {% for area in areas %}
+                                                    {% set ns.dept_total = ns.dept_total + stats_data.warehouses[warehouse.id].areas[area.id].departments[department.id] %}
+                                                {% endfor %}
+                                                {% if ns.dept_total > 0 %}
+                                                    {{ "%.2f"|format(ns.dept_total) }}
+                                                {% endif %}
+                                            </td>
+                                        {% endfor %}
+                                        <td class="text-end table-light">
+                                            {% if stats_data.departments[department.id].total > 0 %}
+                                                <strong>{{ "%.2f"|format(stats_data.departments[department.id].total) }}</strong>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-secondary">
+                                <tr>
+                                    <td><strong>合计</strong></td>
+                                    {% for warehouse in warehouses %}
+                                        <td class="text-end">
+                                            {% if stats_data.total_by_warehouse[warehouse.id] > 0 %}
+                                                <strong>{{ "%.2f"|format(stats_data.total_by_warehouse[warehouse.id]) }}</strong>
+                                            {% endif %}
+                                        </td>
+                                    {% endfor %}
+                                    <td class="text-end table-warning">
+                                        <strong>{{ "%.2f"|format(stats_data.grand_total) }}</strong>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Detailed View Tab - Using Jinja2 namespace for better value tracking -->
+                <div class="tab-pane fade" id="detailed-view" role="tabpanel" aria-labelledby="detailed-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center" colspan="{{ warehouses|length + 2 }}">费用详细视图 - 部门、区域和仓库明细</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for department in departments %}
+                                    {% set ns = namespace(dept_has_any_data=false, dept_total=0) %}
+                                    
+                                    {% for area in areas %}
+                                        {% for warehouse in warehouses %}
+                                            {% set value = stats_data.warehouses[warehouse.id].areas[area.id].departments[department.id] %}
+                                            {% if value > 0 %}
+                                                {% set ns.dept_has_any_data = true %}
+                                                {% set ns.dept_total = ns.dept_total + value %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                    
+                                    {% if ns.dept_has_any_data %}
+                                        <!-- Department header row -->
+                                        <tr class="table-primary">
+                                            <td colspan="{{ warehouses|length + 2 }}">
+                                                <strong>部门: {{ department.name }}</strong>
+                                            </td>
+                                        </tr>
+                                        
+                                        <!-- Warehouse header row for this department -->
+                                        <tr class="table-secondary">
+                                            <td>区域 / 仓库</td>
+                                            {% for warehouse in warehouses %}
+                                                <td class="text-center">{{ warehouse.name }}</td>
+                                            {% endfor %}
+                                            <td class="text-center">区域合计</td>
+                                        </tr>
+                                        
+                                        <!-- Area rows for this department -->
+                                        {% for area in areas %}
+                                            {% set ns2 = namespace(area_has_data=false, area_dept_total=0) %}
+                                            
+                                            {% for warehouse in warehouses %}
+                                                {% set value = stats_data.warehouses[warehouse.id].areas[area.id].departments[department.id] %}
+                                                {% if value > 0 %}
+                                                    {% set ns2.area_has_data = true %}
+                                                    {% set ns2.area_dept_total = ns2.area_dept_total + value %}
+                                                {% endif %}
+                                            {% endfor %}
+                                            
+                                            {% if ns2.area_has_data %}
+                                                <tr>
+                                                    <td>{{ area.name }}</td>
+                                                    {% for warehouse in warehouses %}
+                                                        <td class="text-end">
+                                                            {% set value = stats_data.warehouses[warehouse.id].areas[area.id].departments[department.id] %}
+                                                            {% if value > 0 %}
+                                                                {{ "%.2f"|format(value) }}
+                                                            {% endif %}
+                                                        </td>
+                                                    {% endfor %}
+                                                    <td class="text-end table-info">
+                                                        <strong>{{ "%.2f"|format(ns2.area_dept_total) }}</strong>
+                                                    </td>
+                                                </tr>
+                                            {% endif %}
+                                        {% endfor %}
+                                        
+                                        <!-- Department total row -->
+                                        <tr class="table-secondary">
+                                            <td><strong>部门合计</strong></td>
+                                            {% for warehouse in warehouses %}
+                                                {% set ns3 = namespace(wh_dept_total=0) %}
+                                                {% for area in areas %}
+                                                    {% set value = stats_data.warehouses[warehouse.id].areas[area.id].departments[department.id] %}
+                                                    {% set ns3.wh_dept_total = ns3.wh_dept_total + value %}
+                                                {% endfor %}
+                                                <td class="text-end">
+                                                    {% if ns3.wh_dept_total > 0 %}
+                                                        <strong>{{ "%.2f"|format(ns3.wh_dept_total) }}</strong>
+                                                    {% endif %}
+                                                </td>
+                                            {% endfor %}
+                                            <td class="text-end table-warning">
+                                                <strong>{{ "%.2f"|format(ns.dept_total) }}</strong>
+                                            </td>
+                                        </tr>
+                                        
+                                        <!-- Spacing row -->
+                                        <tr class="table-light">
+                                            <td colspan="{{ warehouses|length + 2 }}" style="height:10px;"></td>
+                                        </tr>
                                     {% endif %}
-                                </td>
-                            {% endfor %}
-                            <td class="text-end table-warning">
-                                <strong>{{ "%.2f"|format(stats_data.grand_total) }}</strong>
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>
+                                {% endfor %}
+                                
+                                <!-- Grand total row -->
+                                <tr class="table-dark">
+                                    <td><strong>总计</strong></td>
+                                    {% for warehouse in warehouses %}
+                                        <td class="text-end text-light">
+                                            {% if stats_data.total_by_warehouse[warehouse.id] > 0 %}
+                                                <strong>{{ "%.2f"|format(stats_data.total_by_warehouse[warehouse.id]) }}</strong>
+                                            {% endif %}
+                                        </td>
+                                    {% endfor %}
+                                    <td class="text-end text-light">
+                                        <strong>{{ "%.2f"|format(stats_data.grand_total) }}</strong>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 {% endblock content %}
-
 {% block scripts %}
     {{ super() }}
     <script>

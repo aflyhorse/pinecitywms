@@ -1,6 +1,103 @@
-{% extends "base.html.jinja" %}
-{% from 'bootstrap5/form.html' import render_field %}
-{% block content %}
+
+
+<!DOCTYPE html>
+<html lang="zh-cn">
+    <head>
+        
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="description" content="青松城设备科仓库管理系统 - 用于管理设备和物品的仓库管理系统">
+            <meta name="keywords" content="仓库管理,设备管理,物品管理,青松城,设备科">
+            
+                <link rel="stylesheet" href="/bootstrap/static/css/bootstrap.min.css">
+            
+            <title>青松城设备科仓库管理系统</title>
+        
+    </head>
+    <body>
+        
+
+    
+        <div class="alert alert-success" role="alert">
+    
+           登录成功。
+        </div>
+        <nav class="navbar navbar-expand-sm bg-light">
+            <div class="container-fluid">
+                <div class="d-flex justify-content-start">
+                    <ul class="navbar-nav">
+                        
+    
+    
+    <a class="nav-item nav-link"
+       href="/">
+        青松城设备科仓库管理系统 
+    </a>
+    
+
+                        
+                            
+    
+    
+    <a class="nav-item nav-link"
+       href="/inventory">
+        库存管理 
+    </a>
+    
+
+                            
+    
+    
+    <a class="nav-item nav-link"
+       href="/records">
+        操作记录 
+    </a>
+    
+
+                            
+                                
+    
+    
+    <a class="nav-item nav-link"
+       href="/item">
+        物品管理 
+    </a>
+    
+
+                                
+    
+    
+    <a class="nav-item nav-link"
+       href="/statistics_fee">
+        费用统计 
+    </a>
+    
+
+                            
+                        
+                    </ul>
+                </div>
+                
+                    <div class="d-flex justify-content-end">
+                        <ul class="navbar-nav">
+                            <li class="nav-item">
+                                <a class="nav-link">你好，Test Admin</a>
+                            </li>
+                            
+    
+    
+    <a class="nav-item nav-link"
+       href="/logout">
+        登出 
+    </a>
+    
+
+                        </ul>
+                    </div>
+                
+            </div>
+        </nav>
+        
     <style>
         /* Style for readonly fields */
         input[readonly] {
@@ -13,39 +110,238 @@
     <div class="container p-5 my-5 border">
         <h2>出库</h2>
         <form method="post" autocomplete="off" id="stockout-form">
-            {{ form.csrf_token }}
+            
             <div class="row mb-3">
-                <div class="col-md-6">{{ render_field(form.warehouse) }}</div>
+                <div class="col-md-6">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="warehouse">仓库</label>
+                        <select class="form-select" id="warehouse" name="warehouse" required><option selected value="1">Test Warehouse</option></select>
+                    
+        </div>
+    
+</div>
             </div>
             <div class="row mb-3">
-                <div class="col-md-6">{{ render_field(form.area) }}</div>
-                <div class="col-md-6">{{ render_field(form.department) }}</div>
+                <div class="col-md-6">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="area">区域</label>
+                        <select class="form-select is-invalid" id="area" name="area" required></select>
+                    
+                        <div class="invalid-feedback d-block">Not a valid choice.</div>
+        </div>
+    
+</div>
+                <div class="col-md-6">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="department">部门</label>
+                        <select class="form-select is-invalid" id="department" name="department" required></select>
+                    
+                        <div class="invalid-feedback d-block">Not a valid choice.</div>
+        </div>
+    
+</div>
             </div>
             <div class="row mb-3">
-                <div class="col-md-12">{{ render_field(form.location) }}</div>
+                <div class="col-md-12">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="location">具体地点</label>
+                        <input class="form-control" id="location" maxlength="30" minlength="1" name="location" required type="text" value="测试地点">
+                    
+        </div>
+    
+</div>
             </div>
             <datalist id="item-ids">
-                {% for id, name, price, count in items %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+                
             </datalist>
             <div id="items">
-                {% for item_form in form.items %}
-                    {{ item_form.csrf_token }}
+                
+                    
                     <div class="item-form d-flex align-items-center">
-                        <div class="flex-grow-1">{{ render_field(item_form.item_id, placeholder="输入或双击选择物品", autocomplete="off") }}</div>
-                        <div class="flex-grow-1">{{ render_field(item_form.stock_count, class="readonly-field") }}</div>
-                        <div class="flex-grow-1">{{ render_field(item_form.quantity) }}</div>
-                        <div class="flex-grow-1">{{ render_field(item_form.price, class="readonly-field") }}</div>
+                        <div class="flex-grow-1">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="items-0-item_id">物品</label>
+                        <input autocomplete="off" class="form-control" id="items-0-item_id" list="item-ids" name="items-0-item_id" placeholder="输入或双击选择物品" required type="text" value="1">
+                    
+        </div>
+    
+</div>
+                        <div class="flex-grow-1">
+
+    
+    
+
+    
+
+    
+    
+    
+    
+        
+        
+        
+        
+    
+    
+
+    <div class="mb-3"><label class="form-label" for="items-0-stock_count">库存数量</label>
+                        <input class="form-control readonly-field" id="items-0-stock_count" name="items-0-stock_count" readonly type="number" value="">
+                    
+        </div>
+    
+</div>
+                        <div class="flex-grow-1">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="items-0-quantity">数量</label>
+                        <input class="form-control" id="items-0-quantity" name="items-0-quantity" required type="number" value="5">
+                    
+        </div>
+    
+</div>
+                        <div class="flex-grow-1">
+
+    
+    
+        
+    
+
+    
+
+    
+    
+    
+    
+        
+        
+        
+        
+    
+    
+
+    <div class="mb-3 required"><label class="form-label" for="items-0-price">价格</label>
+                        <input class="form-control readonly-field" id="items-0-price" name="items-0-price" readonly required step="any" type="number" value="60.00">
+                    
+        </div>
+    
+</div>
                         <button type="button" class="btn btn-danger remove-item">x</button>
                     </div>
-                {% endfor %}
+                
             </div>
             <button type="button" class="btn btn-primary" id="add-item">添加物品</button>
-            {{ render_field(form.submit) }}
+            
+
+    
+    
+
+    
+
+    
+    
+    
+    
+    
+
+    
+        
+        
+        
+    
+
+            
+            
+            <input class="btn btn-primary btn-md" id="submit" name="submit" type="submit" value="出库">
+        
+
+
+
+
         </form>
     </div>
-{% endblock content %}
-{% block scripts %}
-    {{ super() }}
+
+        
+    
+            <script src="/bootstrap/static/umd/popper.min.js"></script>
+        <script src="/bootstrap/static/js/bootstrap.min.js"></script>
+        
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const addItemButton = document.getElementById('add-item');
@@ -57,7 +353,7 @@
             warehouseSelect.addEventListener('change', function() {
                 // Redirect to the stockout page with the selected warehouse as a parameter
                 const selectedWarehouse = this.value;
-                window.location.href = `{{ url_for('stockout') }}?warehouse=${selectedWarehouse}`;
+                window.location.href = `/stockout?warehouse=${selectedWarehouse}`;
             });
 
             // Handle adding new item
@@ -96,22 +392,11 @@
             const itemNameMapping = {};
             const itemPrices = {};
             const itemCounts = {};
-            {% for id, name, price, count in items %}
-                itemNameMapping['{{ name }}'] = {{ id }};
-                itemPrices[{{ id }}] = {{ price }};
-                itemCounts[{{ id }}] = {{ count }};
-            {% endfor %}
+            
 
             // Store the original items array for searching
             const items = [
-                {% for id, name, price, count in items %}
-                    {
-                        id: {{ id }},
-                        name: '{{ name }}',
-                        price: {{ price }},
-                        count: {{ count }}
-                    }{% if not loop.last %},{% endif %}
-                {% endfor %}
+                
             ];
 
             // Handle item search, selection, and auto-fill for price and stock count
@@ -198,4 +483,6 @@
             });
         });
     </script>
-{% endblock scripts %}
+
+    </body>
+</html>

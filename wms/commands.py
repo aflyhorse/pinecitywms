@@ -7,8 +7,8 @@ from wms.models import (
     Transaction,
     Warehouse,
     ReceiptType,
-    Customer,
-    CustomerType,
+    Area,
+    Department,
 )
 import click
 
@@ -23,16 +23,24 @@ def initdb(drop):
 
     publicareas = ["地下室"]
     for i in range(1, 4 + 1):
-        publicareas.append(f"{i}F主楼")
-        publicareas.append(f"{i}F群房")
-    publicareas.append("5F屋面")
-    for i in range(5, 11 + 1):
-        publicareas.append(f"{i}F办公房")
-    for i in range(12, 19 + 1):
-        publicareas.append(f"{i}F客房")
-    publicareas.append("19F屋面")
+        publicareas.append(f"{i}F房间")
+        publicareas.append(f"{i}F公共区域")
+    publicareas.extend(
+        [
+            "5F屋面",
+            "5-11F办公房房间",
+            "5-11F办公房公共区域",
+            "12-19F客房房间",
+            "12-19F客房公共区域",
+            "19F屋面",
+            "其他公共区域",
+            "班组",
+            "老干部招待所",
+            "岳阳大院",
+        ]
+    )
     for area in publicareas:
-        db.session.add(Customer(name=area, type=CustomerType.PUBLICAREA))
+        db.session.add(Area(name=area))
 
     departments = [
         "活动中心主任室",
@@ -40,8 +48,7 @@ def initdb(drop):
         "康乐科",
         "餐饮服务科",
         "会务科",
-        "总经理室",
-        "副总经理室",
+        "总经理/副总经理室",
         "党建办",
         "人事科",
         "设备管理科",
@@ -55,7 +62,7 @@ def initdb(drop):
         "岳阳大院",
     ]
     for depart in departments:
-        db.session.add(Customer(name=depart, type=CustomerType.DEPARTMENT))
+        db.session.add(Department(name=depart))
 
     usernames = [("admin", "管理员"), ("ruodian", "弱电")]
     for name in usernames:
@@ -64,8 +71,6 @@ def initdb(drop):
         warehouse = Warehouse(name=f"{name[1]}仓库", owner=user)
         db.session.add(user)
         db.session.add(warehouse)
-    db.session.add(Customer(name="办公室", type=CustomerType.GROUP))
-    db.session.add(Customer(name=usernames[1][1], type=CustomerType.GROUP))
 
     usernames = [
         ("qiangdian", "强电"),
@@ -79,7 +84,6 @@ def initdb(drop):
         warehouse = Warehouse(name=f"{name[1]}仓库", owner=user)
         db.session.add(user)
         db.session.add(warehouse)
-        db.session.add(Customer(name=name[1], type=CustomerType.GROUP))
 
     warehouse = Warehouse(name="回收仓库", is_public=True)
     db.session.add(warehouse)
@@ -141,9 +145,7 @@ def forge():
     user: User = db.session.execute(
         db.select(User).filter_by(username="admin")
     ).scalar_one()
-    item: Item = db.session.execute(
-        db.select(Item).filter_by(name="螺丝")
-    ).scalar_one()
+    item: Item = db.session.execute(db.select(Item).filter_by(name="螺丝")).scalar_one()
     itemSKU: ItemSKU = db.session.execute(
         db.select(ItemSKU).filter_by(item=item)
     ).scalar_one()

@@ -40,10 +40,7 @@ def test_item_creation(auth_client):
         follow_redirects=True,
     )
     assert response.status_code == 200
-    assert (
-        b"\xe7\x89\xa9\xe5\x93\x81\xe6\xb7\xbb\xe5\x8a\xa0\xe6\x88\x90\xe5\x8a\x9f"
-        in response.data
-    )  # 物品添加成功 in UTF-8
+    assert "物品添加成功".encode() in response.data
 
     # Get the first item from the database
     with app.app_context():
@@ -61,10 +58,7 @@ def test_item_creation(auth_client):
         follow_redirects=True,
     )
     assert response.status_code == 200
-    assert (
-        b"\xe7\x89\xa9\xe5\x93\x81\xe6\xb7\xbb\xe5\x8a\xa0\xe6\x88\x90\xe5\x8a\x9f"
-        in response.data
-    )  # 物品添加成功 in UTF-8
+    assert "物品添加成功".encode() in response.data
 
     # Test invalid existing item
     response = auth_client.post(
@@ -78,10 +72,7 @@ def test_item_creation(auth_client):
         follow_redirects=True,
     )
     assert response.status_code == 200
-    assert (
-        b"\xe6\x9c\xaa\xe6\x89\xbe\xe5\x88\xb0\xe6\x8c\x87\xe5\xae\x9a\xe7\x89\xa9\xe5\x93\x81"
-        in response.data
-    )  # 未找到指定物品 in UTF-8
+    assert "未找到指定物品".encode() in response.data
 
 
 def test_non_admin_access(client, regular_user):

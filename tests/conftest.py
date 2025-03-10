@@ -1,6 +1,6 @@
 import pytest
 from wms import app, db
-from wms.models import User, Item, ItemSKU, Warehouse, Customer, CustomerType
+from wms.models import User, Item, ItemSKU, Warehouse, Area, Department
 import uuid
 
 
@@ -106,12 +106,9 @@ def public_warehouse(auth_client):
 @pytest.fixture
 def test_customer(auth_client):
     with app.app_context():
-        # Create test customers for each type
-        area = Customer(name="Test Area", type=CustomerType.PUBLICAREA)
-        department = Customer(name="Test Department", type=CustomerType.DEPARTMENT)
-        group = Customer(name="Test Group", type=CustomerType.GROUP)
-
-        db.session.add_all([area, department, group])
+        # Create test areas and departments
+        area = Area(name="Test Area")
+        department = Department(name="Test Department")
+        db.session.add_all([area, department])
         db.session.commit()
-
-        return {"area": area.id, "department": department.id, "group": group.id}
+        return {"area": area.id, "department": department.id}

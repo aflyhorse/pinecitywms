@@ -10,8 +10,8 @@ from wms.models import (
     Transaction,
     ReceiptType,
     WarehouseItemSKU,
-    Customer,
-    CustomerType,
+    Area,
+    Department,
 )
 from wms.forms import StockInForm, ItemSearchForm, StockOutForm
 from sqlalchemy import and_
@@ -156,12 +156,10 @@ def stockin():
 @login_required
 def stockout():
     form = StockOutForm()
-    # Get all customers and group them by type
-    customers_by_type = {}
-    for customer_type in CustomerType:
-        customers_by_type[customer_type.name] = Customer.query.filter_by(
-            type=customer_type
-        ).all()
+
+    # Get all areas and departments
+    areas = Area.query.all()
+    departments = Department.query.all()
 
     # Get warehouses accessible by the current user
     if current_user.is_admin:
@@ -171,8 +169,10 @@ def stockout():
             (Warehouse.is_public) | (Warehouse.owner_id == current_user.id)
         ).all()
 
-    # Populate warehouse choices in the form
+    # Populate form choices
     form.warehouse.choices = [(w.id, w.name) for w in warehouses]
+    form.area.choices = [(a.id, a.name) for a in areas]
+    form.department.choices = [(d.id, d.name) for d in departments]
 
     # Initialize items list
     items = []
@@ -216,52 +216,50 @@ def stockout():
             for sku in skus
         ]
 
-    # Handle customer type selection
-    if request.method == "POST":
-        selected_type = form.customer_type.data
-        if selected_type:  # Only update if type is selected
-            type_customers = Customer.query.filter_by(
-                type=CustomerType[selected_type]
-            ).all()
-            form.customer.choices = [(c.id, c.name) for c in type_customers]
-
-            # If warehouse was changed, redirect to GET to update the item list
-            if "warehouse" in request.form and not form.validate_on_submit():
-                return redirect(url_for("stockout", warehouse=selected_warehouse_id))
-
+    # Create dictionary for item details
     items_dict = {
         id: {"name": name, "price": price, "count": count}
         for id, name, price, count in items
     }
 
     if form.validate_on_submit():
-        # Find customer by ID
-        customer = db.session.get(Customer, form.customer.data)
-        if not customer:
-            flash("无效的客户选择", "danger")  # pragma: no cover
-            return render_template(  # pragma: no cover
+        # Find area and department by ID
+        area = db.session.get(Area, form.area.data)
+        if not area:
+            flash("无效的区域选择", "danger")
+            return render_template(
                 "inventory_stockout.html.jinja",
                 form=form,
                 items=items,
-                customers_by_type=customers_by_type,
+            )
+
+        # Find department by ID
+        department = db.session.get(Department, form.department.data)
+        if not department:
+            flash("无效的部门选择", "danger")
+            return render_template(
+                "inventory_stockout.html.jinja",
+                form=form,
+                items=items,
             )
 
         # Get the selected warehouse
         selected_warehouse = db.session.get(Warehouse, form.warehouse.data)
         if not selected_warehouse:
-            flash("请选择有效的仓库", "danger")  # pragma: no cover
-            return render_template(  # pragma: no cover
+            flash("请选择有效的仓库", "danger")
+            return render_template(
                 "inventory_stockout.html.jinja",
                 form=form,
                 items=items,
-                customers_by_type=customers_by_type,
             )
 
         receipt = Receipt(
             operator=current_user,
             warehouse_id=selected_warehouse.id,
             type=ReceiptType.STOCKOUT,
-            customer=customer,
+            area=area,
+            department=department,
+            location=form.location.data,
         )
         db.session.add(receipt)
         db.session.flush()
@@ -289,7 +287,6 @@ def stockout():
                         "inventory_stockout.html.jinja",
                         form=form,
                         items=items,
-                        customers_by_type=customers_by_type,
                     )
 
                 transaction = Transaction(
@@ -305,7 +302,6 @@ def stockout():
                     "inventory_stockout.html.jinja",
                     form=form,
                     items=items,
-                    customers_by_type=customers_by_type,
                 )
 
         db.session.commit()
@@ -313,17 +309,9 @@ def stockout():
         db.session.commit()
         flash("出库成功。", "success")
         return redirect(url_for("inventory", warehouse=selected_warehouse.id))
-    else:
-        # Set initial customer choices based on first customer type
-        if not form.customer_type.data:  # Only set default if not already set
-            first_type = CustomerType.PUBLICAREA  # Use public area as default
-            form.customer_type.data = first_type.name
-            type_customers = Customer.query.filter_by(type=first_type).all()
-            form.customer.choices = [(c.id, c.name) for c in type_customers]
 
     return render_template(
         "inventory_stockout.html.jinja",
         form=form,
         items=items,
-        customers_by_type=customers_by_type,
     )
