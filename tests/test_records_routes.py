@@ -670,3 +670,227 @@ def test_export_records_with_filters(auth_client, test_warehouse, test_customer)
     # Test export with sku description filter - this should hit line 389
     response = auth_client.get(f"/export_records?sku_desc={sku.brand}")
     assert response.status_code == 200
+
+
+@pytest.mark.usefixtures("test_item")
+def test_statistics_usage_access(auth_client):
+    """Test basic access to statistics_usage page"""
+    response = auth_client.get("/statistics_usage")
+    assert response.status_code == 200
+    assert "用量统计".encode() in response.data
+    # Check for filter form elements
+    assert b'name="start_date"' in response.data
+    assert b'name="end_date"' in response.data
+    assert b'name="item_name"' in response.data
+    assert b'name="brand"' in response.data
+    assert b'name="spec"' in response.data
+    # Check for shortcut buttons
+    assert b'id="current-year"' in response.data
+    assert b'id="last-year"' in response.data
+    assert b'id="current-month"' in response.data
+    assert b'id="last-month"' in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_statistics_usage_default_date(auth_client):
+    """Test that default date range is set to current month"""
+    response = auth_client.get("/statistics_usage")
+    assert response.status_code == 200
+
+    # Check for current month/year in the response
+    today = datetime.now()
+    current_year = today.year
+    current_month = today.month
+    month_str = f"{current_month:02d}"
+
+    # First day of current month should be the default start date
+    assert f"{current_year}-{month_str}-01".encode() in response.data
+
+    # Verify script contains current year and month variables
+    assert f"const currentYear = {current_year};".encode() in response.data
+    assert f"const currentMonth = {current_month};".encode() in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_statistics_usage_warehouse_access(client, regular_user, regular_warehouse):
+    """Test warehouse access control for regular users"""
+    # Login as regular user
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+
+    # Create another private warehouse
+    with app.app_context():
+        other_user = User(
+            username="otherwarehouse",
+            nickname="Other User",
+            password_hash=generate_password_hash("password123"),
+            is_admin=False,
+        )
+        db.session.add(other_user)
+        db.session.flush()
+
+        other_warehouse = Warehouse(name="Other Private Warehouse", owner=other_user)
+        db.session.add(other_warehouse)
+
+        public_warehouse = Warehouse(name="Public Test Warehouse", is_public=True)
+        db.session.add(public_warehouse)
+        db.session.commit()
+
+        other_warehouse_id = other_warehouse.id
+        public_warehouse_id = public_warehouse.id
+
+    # Regular user should be redirected to their default warehouse
+    response = client.get("/statistics_usage", follow_redirects=False)
+    assert response.status_code == 302  # Should redirect
+    assert (
+        f"warehouse={regular_warehouse}".encode() in response.location
+    )  # Should redirect to default warehouse
+
+    # Following the redirect should show the page
+    response = client.get(response.location, follow_redirects=True)
+    assert response.status_code == 200
+
+    # Should see their own warehouse and public warehouse
+    assert "Public Test Warehouse".encode() in response.data
+    assert (
+        "全部仓库".encode() not in response.data
+    )  # Regular users can't see "All Warehouses"
+
+    # Should not see other user's private warehouse
+    response = client.get(f"/statistics_usage?warehouse={other_warehouse_id}")
+    assert response.status_code == 200
+    assert "Other Private Warehouse".encode() not in response.data
+
+    # Should see public warehouse data
+    response = client.get(f"/statistics_usage?warehouse={public_warehouse_id}")
+    assert response.status_code == 200
+    assert "Public Test Warehouse".encode() in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_statistics_usage_data_accuracy(auth_client, test_warehouse, test_customer):
+    """Test that usage statistics are calculated correctly"""
+    with app.app_context():
+        sku = ItemSKU.query.first()
+
+        # Create stockout receipts with different quantities
+        receipt1 = Receipt(
+            operator_id=1,
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKOUT,
+            area_id=test_customer["area"],
+            department_id=test_customer["department"],
+        )
+        db.session.add(receipt1)
+        db.session.flush()
+        transaction1 = Transaction(
+            itemSKU=sku, count=-10, price=100.00, receipt=receipt1
+        )
+        db.session.add(transaction1)
+
+        receipt2 = Receipt(
+            operator_id=1,
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKOUT,
+            area_id=test_customer["area"],
+            department_id=test_customer["department"],
+        )
+        db.session.add(receipt2)
+        db.session.flush()
+        transaction2 = Transaction(
+            itemSKU=sku, count=-5, price=110.00, receipt=receipt2
+        )
+        db.session.add(transaction2)
+
+        db.session.commit()
+
+        item_name = sku.item.name
+        brand = sku.brand
+        spec = sku.spec
+
+    # Get today's date for testing
+    today = datetime.now().date()
+    start_date = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    end_date = today.strftime("%Y-%m-%d")
+
+    # Test without filters
+    response = auth_client.get(
+        f"/statistics_usage?start_date={start_date}&end_date={end_date}"
+    )
+    assert response.status_code == 200
+    assert str(15).encode() in response.data  # Total usage should be 15 (10 + 5)
+
+    # Test with item name filter
+    response = auth_client.get(
+        f"/statistics_usage?start_date={start_date}&end_date={end_date}&item_name={item_name}"
+    )
+    assert response.status_code == 200
+    assert str(15).encode() in response.data
+    assert item_name.encode() in response.data
+
+    # Test with brand filter
+    response = auth_client.get(
+        f"/statistics_usage?start_date={start_date}&end_date={end_date}&brand={brand}"
+    )
+    assert response.status_code == 200
+    assert str(15).encode() in response.data
+    assert brand.encode() in response.data
+
+    # Test with spec filter
+    response = auth_client.get(
+        f"/statistics_usage?start_date={start_date}&end_date={end_date}&spec={spec}"
+    )
+    assert response.status_code == 200
+    assert str(15).encode() in response.data
+    assert spec.encode() in response.data
+
+    # Test with warehouse filter
+    response = auth_client.get(
+        f"/statistics_usage?start_date={start_date}&end_date={end_date}&warehouse={test_warehouse}"
+    )
+    assert response.status_code == 200
+    assert str(15).encode() in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_statistics_usage_with_stockin_ignored(auth_client, test_warehouse):
+    """Test that stockin transactions are not counted in usage statistics"""
+    with app.app_context():
+        sku = ItemSKU.query.first()
+
+        # Create a stockin receipt
+        receipt_in = Receipt(
+            operator_id=1,
+            refcode="USAGE-TEST-IN",
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKIN,
+        )
+        db.session.add(receipt_in)
+        db.session.flush()
+        transaction_in = Transaction(
+            itemSKU=sku, count=2000, price=100.00, receipt=receipt_in
+        )
+        db.session.add(transaction_in)
+
+        # Create a stockout receipt
+        receipt_out = Receipt(
+            operator_id=1,
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKOUT,
+        )
+        db.session.add(receipt_out)
+        db.session.flush()
+        transaction_out = Transaction(
+            itemSKU=sku, count=-8, price=110.00, receipt=receipt_out
+        )
+        db.session.add(transaction_out)
+
+        db.session.commit()
+
+    # Test statistics - should only show the stockout amount
+    response = auth_client.get("/statistics_usage")
+    assert response.status_code == 200
+    assert str(8).encode() in response.data  # Only stockout amount should be counted
+    assert str(2000).encode() not in response.data  # Stockin amount should not appear

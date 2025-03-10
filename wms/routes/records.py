@@ -301,6 +301,133 @@ def statistics_fee():
     )
 
 
+@app.route("/statistics_usage", methods=["GET"])
+@login_required
+def statistics_usage():
+    # Get current year and month for default date range
+    today = datetime.now()
+    current_year = today.year
+    current_month = today.month
+
+    # Get filter parameters from request
+    start_date = request.args.get("start_date", "")
+    end_date = request.args.get("end_date", "")
+    warehouse_id = request.args.get("warehouse")
+    item_name = request.args.get("item_name", "")
+    brand = request.args.get("brand", "")
+    spec = request.args.get("spec", "")
+
+    # If no dates are provided, default to current month
+    if not start_date and not end_date:
+        # First day of current month
+        start_date = f"{current_year}-{current_month:02d}-01"
+
+        # Last day of current month
+        if current_month == 12:
+            next_month_year = current_year + 1
+            next_month = 1
+        else:
+            next_month_year = current_year
+            next_month = current_month + 1
+        next_month_first = datetime(next_month_year, next_month, 1)
+        last_day = (next_month_first - timedelta(days=1)).day
+        end_date = f"{current_year}-{current_month:02d}-{last_day}"
+
+    # Get warehouses accessible by the current user
+    if current_user.is_admin:
+        warehouses = Warehouse.query.all()
+    else:
+        warehouses = Warehouse.query.filter(
+            (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
+        ).all()
+
+    # For regular users, ensure a warehouse is selected
+    if not current_user.is_admin and not warehouse_id and warehouses:
+        user_warehouse = next(
+            (w for w in warehouses if w.owner_id == current_user.id), None
+        )
+        default_warehouse = user_warehouse or warehouses[0] if warehouses else None
+        if default_warehouse:
+            return redirect(
+                url_for(
+                    "statistics_usage",
+                    warehouse=default_warehouse.id,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+            )
+
+    # Get all unique item names for datalist
+    item_names = db.session.execute(select(distinct(Item.name)).order_by(Item.name)).scalars().all()
+
+    # Query base - aggregate transactions by ItemSKU
+    query = (
+        db.session.query(
+            ItemSKU,
+            Item,
+            func.sum(Transaction.count * -1).label("total_usage"),
+        )
+        .join(Transaction)
+        .join(Receipt)
+        .join(Item)
+        .filter(Receipt.type == ReceiptType.STOCKOUT)
+        .group_by(ItemSKU.id, Item.id)
+        .order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
+    )
+
+    # Filter by warehouse access if not admin
+    if not current_user.is_admin:
+        query = query.join(Receipt.warehouse).filter(
+            (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
+        )
+
+    # Apply filters
+    if warehouse_id:
+        if not current_user.is_admin:
+            allowed_warehouse_ids = [w.id for w in warehouses]
+            if int(warehouse_id) not in allowed_warehouse_ids:
+                warehouse_id = None
+
+        if warehouse_id:
+            query = query.filter(Receipt.warehouse_id == warehouse_id)
+
+    if start_date:
+        start_datetime = datetime.strptime(
+            f"{start_date} 00:00:00", "%Y-%m-%d %H:%M:%S"
+        )
+        query = query.filter(Receipt.date >= start_datetime)
+
+    if end_date:
+        end_datetime = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S")
+        query = query.filter(Receipt.date <= end_datetime)
+
+    # Apply item filters
+    if item_name:
+        query = query.filter(Item.name.ilike(f"%{item_name}%"))
+    if brand:
+        query = query.filter(ItemSKU.brand.ilike(f"%{brand}%"))
+    if spec:
+        query = query.filter(ItemSKU.spec.ilike(f"%{spec}%"))
+
+    # Get results
+    usage_data = query.all()
+
+    return render_template(
+        "statistics_usage.html.jinja",
+        warehouses=warehouses,
+        warehouse_id=warehouse_id,
+        start_date=start_date,
+        end_date=end_date,
+        usage_data=usage_data,
+        current_year=current_year,
+        current_month=current_month,
+        item_names=item_names,
+        item_name=item_name,
+        brand=brand,
+        spec=spec,
+    )
+
+
 @app.route("/export_records")
 @login_required
 def export_records():

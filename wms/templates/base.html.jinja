@@ -24,6 +24,7 @@
                         {% if current_user.is_authenticated %}
                             {{ render_nav_item('inventory', '库存管理') }}
                             {{ render_nav_item('records', '操作记录') }}
+                            {{ render_nav_item('statistics_usage', '用量统计') }}
                             {% if user.is_admin %}
                                 {{ render_nav_item('item', '物品管理') }}
                                 {{ render_nav_item('statistics_fee', '费用统计') }}

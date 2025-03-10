@@ -1,0 +1,170 @@
+{% extends "base.html.jinja" %}
+{% block content %}
+<div class="container p-5 my-5">
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>用量统计</h3>
+            <form method="get" id="statistics-form" class="row g-3 align-items-end mb-3">
+                {% if warehouses|length > 1 %}
+                <div class="col-md-2">
+                    <label class="form-label">仓库</label>
+                    <select name="warehouse" class="form-select" onchange="this.form.submit()">
+                        {% if current_user.is_admin %}
+                        <option value="">全部仓库</option>
+                        {% endif %}
+                        {% for warehouse in warehouses %}
+                        <option value="{{ warehouse.id }}" {% if warehouse_id|int == warehouse.id %}selected{% endif %}>
+                            {{ warehouse.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div class="col-md-2">
+                    <label class="form-label">开始日期</label>
+                    <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">结束日期</label>
+                    <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">物品名称</label>
+                    <input type="text" name="item_name" class="form-control" value="{{ item_name }}" list="item-names" autocomplete="off">
+                    <datalist id="item-names">
+                        {% for name in item_names %}
+                        <option value="{{ name }}">
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">品牌</label>
+                    <input type="text" name="brand" class="form-control" value="{{ brand }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">规格</label>
+                    <input type="text" name="spec" class="form-control" value="{{ spec }}">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">查询</button>
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="current-year">本年</button>
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="last-year">去年</button>
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="current-month">本月</button>
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-outline-secondary w-100" id="last-month">上月</button>
+                </div>
+            </form>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>物品</th>
+                            <th>品牌</th>
+                            <th>规格</th>
+                            <th class="text-end">使用数量</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for itemsku, item, total_usage in usage_data %}
+                        <tr>
+                            <td>{{ item.name }}</td>
+                            <td>{{ itemsku.brand }}</td>
+                            <td>{{ itemsku.spec }}</td>
+                            <td class="text-end">{{ total_usage }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+    {{ super() }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Date utility functions
+            function formatDate(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            
+            function getFirstDayOfMonth(year, month) {
+                return new Date(year, month - 1, 1);
+            }
+            
+            function getLastDayOfMonth(year, month) {
+                return new Date(year, month, 0);
+            }
+            
+            function getFirstDayOfYear(year) {
+                return new Date(year, 0, 1);
+            }
+            
+            function getLastDayOfYear(year) {
+                return new Date(year, 11, 31);
+            }
+            
+            // Current date values
+            const currentYear = {{ current_year }};
+            const currentMonth = {{ current_month }};
+            
+            // Form references
+            const form = document.getElementById('statistics-form');
+            const startDateInput = form.querySelector('input[name="start_date"]');
+            const endDateInput = form.querySelector('input[name="end_date"]');
+            
+            // Button references
+            const currentYearBtn = document.getElementById('current-year');
+            const lastYearBtn = document.getElementById('last-year');
+            const currentMonthBtn = document.getElementById('current-month');
+            const lastMonthBtn = document.getElementById('last-month');
+            
+            // Button event handlers
+            currentYearBtn.addEventListener('click', function() {
+                startDateInput.value = formatDate(getFirstDayOfYear(currentYear));
+                endDateInput.value = formatDate(getLastDayOfYear(currentYear));
+                form.submit();
+            });
+            
+            lastYearBtn.addEventListener('click', function() {
+                startDateInput.value = formatDate(getFirstDayOfYear(currentYear - 1));
+                endDateInput.value = formatDate(getLastDayOfYear(currentYear - 1));
+                form.submit();
+            });
+            
+            currentMonthBtn.addEventListener('click', function() {
+                startDateInput.value = formatDate(getFirstDayOfMonth(currentYear, currentMonth));
+                endDateInput.value = formatDate(getLastDayOfMonth(currentYear, currentMonth));
+                form.submit();
+            });
+            
+            lastMonthBtn.addEventListener('click', function() {
+                // Calculate last month (accounting for year change)
+                let lastMonthYear = currentYear;
+                let lastMonth = currentMonth - 1;
+                if (lastMonth === 0) {
+                    lastMonth = 12;
+                    lastMonthYear--;
+                }
+                
+                startDateInput.value = formatDate(getFirstDayOfMonth(lastMonthYear, lastMonth));
+                endDateInput.value = formatDate(getLastDayOfMonth(lastMonthYear, lastMonth));
+                form.submit();
+            });
+        });
+    </script>
+{% endblock scripts %}
