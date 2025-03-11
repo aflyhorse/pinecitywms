@@ -72,37 +72,34 @@
                     const template = itemForms[0].cloneNode(true);
                     const newHiddenField = hiddenField.cloneNode();
                     
-                    // Update hidden field name and clear value
+                    // Clone the CSRF token field and update its name
+                    const csrfToken = document.querySelector(`[name="items-${lastIndex}-csrf_token"]`);
+                    const newCsrfToken = csrfToken.cloneNode(true);
+                    newCsrfToken.name = `items-${newIndex}-csrf_token`;
+                    
+                    // Update hidden field name
                     newHiddenField.name = `items-${newIndex}-item_sku_id`;
                     newHiddenField.value = '';
                     
-                    // Insert hidden field before the template
+                    // Insert hidden fields before the template
                     itemsDiv.appendChild(newHiddenField);
+                    itemsDiv.appendChild(newCsrfToken);
                     
                     // Clear input values
                     template.querySelectorAll('input').forEach(input => {
-                        input.value = '';
+                        if (!input.name.endsWith('csrf_token')) {  // Don't clear CSRF token
+                            input.value = '';
+                        }
                         
-                        // Update input name and id to use new index
+                        // Update the input name and id to use the new index
                         if (input.name) {
                             input.name = input.name.replace(/items-\d+/, `items-${newIndex}`);
                         }
                         if (input.id) {
                             input.id = input.id.replace(/items-\d+/, `items-${newIndex}`);
                         }
-                        
-                        // Ensure autocomplete is off for newly added item inputs
-                        if (input.name && input.name.endsWith('item_id')) {
-                            input.setAttribute('autocomplete', 'off');
-                            input.setAttribute('data-original-value', '');
-                        }
-                        
-                        // Ensure readonly styling is applied
-                        if (input.hasAttribute('readonly')) {
-                            input.classList.add('readonly-field');
-                        }
                     });
-
+                    
                     // Update label for attributes if present
                     template.querySelectorAll('label').forEach(label => {
                         if (label.htmlFor) {
@@ -121,10 +118,15 @@
                     if (itemForms.length > 1) {
                         const itemForm = event.target.closest('.item-form');
                         const itemFormIndex = Array.from(itemForms).indexOf(itemForm);
-                        // Remove the associated hidden field too
+                        
+                        // Remove the associated hidden fields too
                         const hiddenField = document.querySelector(`[name="items-${itemFormIndex}-item_sku_id"]`);
+                        const csrfToken = document.querySelector(`[name="items-${itemFormIndex}-csrf_token"]`);
                         if (hiddenField) {
                             hiddenField.remove();
+                        }
+                        if (csrfToken) {
+                            csrfToken.remove();
                         }
                         itemForm.remove();
                         
@@ -142,9 +144,14 @@
                             });
                         });
                         
-                        // Also renumber hidden fields
+                        // Also renumber hidden fields and CSRF tokens
                         document.querySelectorAll('[name*="item_sku_id"]').forEach((hidden, idx) => {
                             hidden.name = hidden.name.replace(/items-\d+/, `items-${idx}`);
+                        });
+                        document.querySelectorAll('[name*="csrf_token"]').forEach((token, idx) => {
+                            if (token.name.startsWith('items-')) {
+                                token.name = token.name.replace(/items-\d+/, `items-${idx}`);
+                            }
                         });
                     }
                 }

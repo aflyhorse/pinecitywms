@@ -110,7 +110,6 @@ def stockin():
     # Get all items with their display text
     skus = db.session.query(ItemSKU).join(Item).all()
     items = [(sku.id, f"{sku.item.name} - {sku.brand} - {sku.spec}") for sku in skus]
-    items_dict = dict(items)
     form.warehouse.choices = [(w.id, w.name) for w in Warehouse.query.all()]
 
     if form.validate_on_submit():
@@ -130,9 +129,9 @@ def stockin():
                 if not item_sku_id:
                     # Fallback to the old method if hidden field is not populated
                     item_sku_id = item_form.item_id.data
-                    
+
                 item_id = int(item_sku_id)
-                
+
                 # Validate the item exists
                 item = db.session.get(ItemSKU, item_id)
                 if not item:
@@ -146,7 +145,7 @@ def stockin():
                 )
                 db.session.add(transaction)
             except ValueError:
-                flash(f"无效的物品", "danger")
+                flash("无效的物品", "danger")
                 return render_template(
                     "inventory_stockin.html.jinja", form=form, items=items
                 )
@@ -157,6 +156,11 @@ def stockin():
 
         flash("入库成功。", "success")
         return redirect(url_for("inventory", warehouse=form.warehouse.data))
+    else:
+        if request.method == "POST":
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f"Error in {field}: {error}", "danger")
 
     return render_template("inventory_stockin.html.jinja", form=form, items=items)
 
@@ -280,9 +284,9 @@ def stockout():
                 if not item_sku_id:
                     # Fallback to the old method if hidden field is not populated
                     item_sku_id = item_form.item_id.data
-                    
+
                 item_id = int(item_sku_id)
-                
+
                 # Validate the item exists
                 item = db.session.get(ItemSKU, item_id)
                 if not item:
@@ -300,7 +304,7 @@ def stockout():
                 )
 
                 if available_stock < item_form.quantity.data:
-                    item_name = items_dict.get(item_id, {}).get('name', 'Unknown Item')
+                    item_name = items_dict.get(item_id, {}).get("name", "Unknown Item")
                     flash(f"库存不足: {item_name}", "danger")
                     return render_template(
                         "inventory_stockout.html.jinja",

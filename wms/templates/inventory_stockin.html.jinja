@@ -55,16 +55,24 @@
                 const template = itemForms[0].cloneNode(true);
                 const newHiddenField = hiddenField.cloneNode();
                 
+                // Clone the CSRF token field and update its name
+                const csrfToken = document.querySelector(`[name="items-${lastIndex}-csrf_token"]`);
+                const newCsrfToken = csrfToken.cloneNode(true);
+                newCsrfToken.name = `items-${newIndex}-csrf_token`;
+                
                 // Update hidden field name
                 newHiddenField.name = `items-${newIndex}-item_sku_id`;
                 newHiddenField.value = '';
                 
-                // Insert hidden field before the template
+                // Insert hidden fields before the template
                 itemsDiv.appendChild(newHiddenField);
+                itemsDiv.appendChild(newCsrfToken);
                 
                 // Clear input values
                 template.querySelectorAll('input').forEach(input => {
-                    input.value = '';
+                    if (!input.name.endsWith('csrf_token')) {  // Don't clear CSRF token
+                        input.value = '';
+                    }
                     
                     // Update the input name and id to use the new index
                     if (input.name) {
@@ -93,10 +101,15 @@
                 if (itemForms.length > 1) {
                     const itemForm = event.target.closest('.item-form');
                     const itemFormIndex = Array.from(itemForms).indexOf(itemForm);
-                    // Remove the associated hidden field too
+                    
+                    // Remove the associated hidden fields too
                     const hiddenField = document.querySelector(`[name="items-${itemFormIndex}-item_sku_id"]`);
+                    const csrfToken = document.querySelector(`[name="items-${itemFormIndex}-csrf_token"]`);
                     if (hiddenField) {
                         hiddenField.remove();
+                    }
+                    if (csrfToken) {
+                        csrfToken.remove();
                     }
                     itemForm.remove();
                     
@@ -114,9 +127,14 @@
                         });
                     });
                     
-                    // Also renumber hidden fields
+                    // Also renumber hidden fields and CSRF tokens
                     document.querySelectorAll('[name*="item_sku_id"]').forEach((hidden, idx) => {
                         hidden.name = hidden.name.replace(/items-\d+/, `items-${idx}`);
+                    });
+                    document.querySelectorAll('[name*="csrf_token"]').forEach((token, idx) => {
+                        if (token.name.startsWith('items-')) {
+                            token.name = token.name.replace(/items-\d+/, `items-${idx}`);
+                        }
                     });
                 }
             }
