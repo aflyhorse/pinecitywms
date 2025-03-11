@@ -50,7 +50,7 @@
                         <input type="text" name="item_name" class="form-control" value="{{ item_name or '' }}" placeholder="搜索物品" list="item-names" autocomplete="off">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">规格/品牌</label>
+                        <label class="form-label">品牌/规格</label>
                         <input type="text" name="sku_desc" class="form-control" value="{{ sku_desc or '' }}" placeholder="搜索规格或品牌">
                     </div>
                     {% if record_type == 'stockin' %}
@@ -77,7 +77,7 @@
                     <tr>
                         <th>日期</th>
                         <th>物品</th>
-                        <th>规格</th>
+                        <th>品牌 - 规格</th>
                         <th>数量</th>
                         <th>价格</th>
                         <th>仓库</th>

@@ -36,6 +36,7 @@
                         <thead>
                             <tr>
                                 <th>物品</th>
+                                <th>编号</th>
                                 <th>品牌</th>
                                 <th>规格</th>
                             </tr>
@@ -49,11 +50,13 @@
                                     {% set ns.prev_item = itemsku.item.name %}
                                     <tr>
                                         <td rowspan="{{ ns.rowspan }}">{{ itemsku.item.name }}</td>
+                                        <td>{{ '%04d' % itemsku.id }}</td>
                                         <td>{{ itemsku.brand }}</td>
                                         <td>{{ itemsku.spec }}</td>
                                     </tr>
                                 {% else %}
                                     <tr>
+                                        <td>{{ '%04d' % itemsku.id }}</td>
                                         <td>{{ itemsku.brand }}</td>
                                         <td>{{ itemsku.spec }}</td>
                                     </tr>

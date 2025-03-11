@@ -1,6 +1,6 @@
 from flask import render_template, url_for, redirect, flash, request
 from flask_login import login_required
-from sqlalchemy import select, distinct
+from sqlalchemy import select, distinct, desc
 from wms import app, db
 from wms.utils import admin_required
 from wms.models import Item, ItemSKU
@@ -46,8 +46,8 @@ def item():
     if form.spec.data:
         query = query.filter(ItemSKU.spec.ilike(f"%{form.spec.data}%"))
 
-    # Add ordering
-    query = query.order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
+    # Order by Item.id in descending order
+    query = query.order_by(desc(Item.id), desc(ItemSKU.id))
 
     page = 1 if request.args.get("page") is None else int(request.args.get("page"))
     items_pag = db.paginate(query, page=page)
