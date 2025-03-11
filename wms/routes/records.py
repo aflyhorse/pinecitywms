@@ -203,17 +203,22 @@ def statistics_fee():
         end_date = f"{current_year}-{current_month:02d}-{last_day}"
 
     # Initialize empty data structures
-    warehouses = Warehouse.query.order_by(Warehouse.name).all()
-    areas = Area.query.order_by(Area.name).all()
-    departments = Department.query.order_by(Department.name).all()
+    warehouses = Warehouse.query.order_by(Warehouse.id).all()
+    areas = Area.query.order_by(Area.id).all()
+    departments = Department.query.order_by(Department.id).all()
 
     # Initialize statistics data structure with Decimal(0) instead of 0
     stats_data = {
         "warehouses": {w.id: {"name": w.name} for w in warehouses},
-        "areas": {a.id: {"name": a.name, "departments": {}, "total": Decimal('0')} for a in areas},
-        "departments": {d.id: {"name": d.name, "total": Decimal('0')} for d in departments},
-        "total_by_warehouse": {w.id: Decimal('0') for w in warehouses},
-        "grand_total": Decimal('0'),
+        "areas": {
+            a.id: {"name": a.name, "departments": {}, "total": Decimal("0")}
+            for a in areas
+        },
+        "departments": {
+            d.id: {"name": d.name, "total": Decimal("0")} for d in departments
+        },
+        "total_by_warehouse": {w.id: Decimal("0") for w in warehouses},
+        "grand_total": Decimal("0"),
     }
 
     # Initialize each cell in the warehouse × area × department structure
@@ -248,7 +253,9 @@ def statistics_fee():
             Receipt.warehouse_id,
             Receipt.area_id,
             Receipt.department_id,
-            func.sum(Transaction.count * Transaction.price * Decimal('-1')).label("total_value"),
+            func.sum(Transaction.count * Transaction.price * Decimal("-1")).label(
+                "total_value"
+            ),
         )
         .join(Transaction)
         .filter(and_(*filter_conditions))
@@ -284,7 +291,7 @@ def statistics_fee():
 
         # Update area's department structure (for the area tab)
         if department_id not in stats_data["areas"][area_id]["departments"]:
-            stats_data["areas"][area_id]["departments"][department_id] = Decimal('0')
+            stats_data["areas"][area_id]["departments"][department_id] = Decimal("0")
         stats_data["areas"][area_id]["departments"][department_id] += value
 
         # Update grand total
@@ -360,7 +367,11 @@ def statistics_usage():
             )
 
     # Get all unique item names for datalist
-    item_names = db.session.execute(select(distinct(Item.name)).order_by(Item.name)).scalars().all()
+    item_names = (
+        db.session.execute(select(distinct(Item.name)).order_by(Item.name))
+        .scalars()
+        .all()
+    )
 
     # Query base - aggregate transactions by ItemSKU
     query = (
@@ -570,7 +581,7 @@ def export_records():
     # Format price column as number with 2 decimal places
     for row in range(2, len(transactions) + 2):
         cell = ws.cell(row=row, column=5)
-        cell.number_format = '0.00'
+        cell.number_format = "0.00"
 
     # Save to BytesIO
     excel_file = BytesIO()
