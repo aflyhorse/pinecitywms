@@ -23,6 +23,10 @@
                         {{ render_nav_item('index', '青松城设备科仓库管理系统') }}
                         {% if current_user.is_authenticated %}
                             {{ render_nav_item('inventory', '库存管理') }}
+                            {% if current_user.is_admin %}
+                                {{ render_nav_item('stockin', '入库') }}
+                            {% endif %}
+                            {{ render_nav_item('stockout', '出库') }}
                             {{ render_nav_item('records', '操作记录') }}
                             {{ render_nav_item('statistics_usage', '用量统计') }}
                             {% if user.is_admin %}
