@@ -102,16 +102,12 @@
                     const itemForm = event.target.closest('.item-form');
                     const itemFormIndex = Array.from(itemForms).indexOf(itemForm);
                     
-                    // Remove the associated hidden fields too
-                    const hiddenField = document.querySelector(`[name="items-${itemFormIndex}-item_sku_id"]`);
-                    const csrfToken = document.querySelector(`[name="items-${itemFormIndex}-csrf_token"]`);
-                    if (hiddenField) {
-                        hiddenField.remove();
-                    }
-                    if (csrfToken) {
-                        csrfToken.remove();
-                    }
+                    // Remove the form element and its related fields
                     itemForm.remove();
+                    
+                    // Remove hidden fields
+                    const hiddenFieldsToRemove = document.querySelectorAll(`[name^="items-${itemFormIndex}-"]`);
+                    hiddenFieldsToRemove.forEach(field => field.remove());
                     
                     // Renumber remaining forms
                     document.querySelectorAll('.item-form').forEach((form, idx) => {
@@ -127,13 +123,13 @@
                         });
                     });
                     
-                    // Also renumber hidden fields and CSRF tokens
-                    document.querySelectorAll('[name*="item_sku_id"]').forEach((hidden, idx) => {
-                        hidden.name = hidden.name.replace(/items-\d+/, `items-${idx}`);
-                    });
-                    document.querySelectorAll('[name*="csrf_token"]').forEach((token, idx) => {
-                        if (token.name.startsWith('items-')) {
-                            token.name = token.name.replace(/items-\d+/, `items-${idx}`);
+                    // Renumber all remaining hidden fields
+                    const allHiddenFields = document.querySelectorAll('[name*="items-"]');
+                    allHiddenFields.forEach(field => {
+                        const currentIndex = field.name.match(/items-(\d+)/)[1];
+                        if (currentIndex > itemFormIndex) {
+                            const newIndex = parseInt(currentIndex) - 1;
+                            field.name = field.name.replace(/items-\d+/, `items-${newIndex}`);
                         }
                     });
                 }
