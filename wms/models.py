@@ -149,6 +149,9 @@ class Receipt(db.Model):
             )
             if warehouse_item_sku:
                 if self.type == ReceiptType.STOCKIN:
+                    # Initial its average price if it's not set
+                    if warehouse_item_sku.average_price == 0:
+                        warehouse_item_sku.average_price = float(transaction.price)
                     # Update average price and count for stock in
                     total_count = warehouse_item_sku.count + transaction.count
                     # Convert counts to Decimal for precise arithmetic
