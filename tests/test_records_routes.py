@@ -745,7 +745,7 @@ def test_statistics_usage_warehouse_access(client, regular_user, regular_warehou
     response = client.get("/statistics_usage", follow_redirects=False)
     assert response.status_code == 302  # Should redirect
     assert (
-        f"warehouse={regular_warehouse}".encode() in response.location
+        f"warehouse={regular_warehouse}" in response.location
     )  # Should redirect to default warehouse
 
     # Following the redirect should show the page

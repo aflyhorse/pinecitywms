@@ -17,6 +17,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import func, and_, select, distinct
 from openpyxl import Workbook
 from io import BytesIO
+from decimal import Decimal
 
 
 @app.route("/records", methods=["GET"])
@@ -206,13 +207,13 @@ def statistics_fee():
     areas = Area.query.order_by(Area.name).all()
     departments = Department.query.order_by(Department.name).all()
 
-    # Initialize statistics data structure
+    # Initialize statistics data structure with Decimal(0) instead of 0
     stats_data = {
         "warehouses": {w.id: {"name": w.name} for w in warehouses},
-        "areas": {a.id: {"name": a.name, "departments": {}, "total": 0} for a in areas},
-        "departments": {d.id: {"name": d.name, "total": 0} for d in departments},
-        "total_by_warehouse": {w.id: 0 for w in warehouses},
-        "grand_total": 0,
+        "areas": {a.id: {"name": a.name, "departments": {}, "total": Decimal('0')} for a in areas},
+        "departments": {d.id: {"name": d.name, "total": Decimal('0')} for d in departments},
+        "total_by_warehouse": {w.id: Decimal('0') for w in warehouses},
+        "grand_total": Decimal('0'),
     }
 
     # Initialize each cell in the warehouse × area × department structure
@@ -247,7 +248,7 @@ def statistics_fee():
             Receipt.warehouse_id,
             Receipt.area_id,
             Receipt.department_id,
-            func.sum(Transaction.count * Transaction.price * -1).label("total_value"),
+            func.sum(Transaction.count * Transaction.price * Decimal('-1')).label("total_value"),
         )
         .join(Transaction)
         .filter(and_(*filter_conditions))
@@ -261,7 +262,8 @@ def statistics_fee():
         if not area_id or not department_id:
             continue
 
-        value = float(total_value)
+        # Keep as Decimal for precision
+        value = total_value
 
         # Update values in the nested structure
         stats_data["warehouses"][warehouse_id]["areas"][area_id]["departments"][
@@ -282,7 +284,7 @@ def statistics_fee():
 
         # Update area's department structure (for the area tab)
         if department_id not in stats_data["areas"][area_id]["departments"]:
-            stats_data["areas"][area_id]["departments"][department_id] = 0
+            stats_data["areas"][area_id]["departments"][department_id] = Decimal('0')
         stats_data["areas"][area_id]["departments"][department_id] += value
 
         # Update grand total
@@ -548,7 +550,8 @@ def export_records():
             column=4,
             value=trans.count if record_type == "stockin" else -trans.count,
         )
-        ws.cell(row=row, column=5, value=float(trans.price))
+        # Format price as string with 2 decimal places for Excel
+        ws.cell(row=row, column=5, value="{:.2f}".format(float(trans.price)))
         ws.cell(row=row, column=6, value=trans.receipt.warehouse.name)
 
         if record_type == "stockin":
@@ -563,6 +566,11 @@ def export_records():
             ws.cell(row=row, column=9, value=department_name)
             location = trans.receipt.location or ""
             ws.cell(row=row, column=10, value=location)
+
+    # Format price column as number with 2 decimal places
+    for row in range(2, len(transactions) + 2):
+        cell = ws.cell(row=row, column=5)
+        cell.number_format = '0.00'
 
     # Save to BytesIO
     excel_file = BytesIO()

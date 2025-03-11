@@ -122,16 +122,19 @@ class Receipt(db.Model):
     # Area and Department for stockout receipts
     area_id: Mapped[int] = mapped_column(ForeignKey("area.id"), nullable=True)
     area: Mapped["Area"] = relationship("Area")
-    department_id: Mapped[int] = mapped_column(ForeignKey("department.id"), nullable=True)
+    department_id: Mapped[int] = mapped_column(
+        ForeignKey("department.id"), nullable=True
+    )
     department: Mapped["Department"] = relationship("Department")
     # Specific location for stockout
     location: Mapped[str] = mapped_column(String(30), nullable=True)
 
     @property
-    def sum(self) -> float:
-        # Calculate total value of the receipt
+    def sum(self) -> Decimal:
+        # Calculate total value of the receipt using Decimal arithmetic
         return sum(
-            transaction.count * transaction.price for transaction in self.transactions
+            Decimal(str(transaction.count)) * transaction.price
+            for transaction in self.transactions
         )
 
     def update_warehouse_item_skus(self):
@@ -148,10 +151,15 @@ class Receipt(db.Model):
                 if self.type == ReceiptType.STOCKIN:
                     # Update average price and count for stock in
                     total_count = warehouse_item_sku.count + transaction.count
+                    # Convert counts to Decimal for precise arithmetic
+                    dec_total_count = Decimal(str(total_count))
+                    dec_wh_count = Decimal(str(warehouse_item_sku.count))
+                    dec_trans_count = Decimal(str(transaction.count))
+
                     warehouse_item_sku.average_price = (
-                        warehouse_item_sku.count * warehouse_item_sku.average_price
-                        + transaction.count * transaction.price
-                    ) / total_count
+                        dec_wh_count * Decimal(str(warehouse_item_sku.average_price))
+                        + dec_trans_count * transaction.price
+                    ) / dec_total_count
                     warehouse_item_sku.count = total_count
                 elif (
                     self.type == ReceiptType.STOCKOUT
@@ -165,7 +173,9 @@ class Receipt(db.Model):
                     warehouse_id=self.warehouse_id,
                     itemSKU_id=transaction.itemSKU_id,
                     count=transaction.count,
-                    average_price=transaction.price,
+                    average_price=float(
+                        transaction.price
+                    ),  # Convert to float for storage
                 )
                 db.session.add(warehouse_item_sku)
         db.session.commit()
