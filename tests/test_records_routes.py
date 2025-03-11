@@ -894,3 +894,41 @@ def test_statistics_usage_with_stockin_ignored(auth_client, test_warehouse):
     assert response.status_code == 200
     assert str(8).encode() in response.data  # Only stockout amount should be counted
     assert str(2000).encode() not in response.data  # Stockin amount should not appear
+
+
+@pytest.mark.usefixtures("test_item")
+def test_records_location_info_filter(auth_client, test_warehouse, test_customer):
+    with app.app_context():
+        sku = ItemSKU.query.first()
+
+        # Create a stockout receipt with a specific location
+        receipt = Receipt(
+            operator_id=1,  # admin user
+            warehouse_id=test_warehouse,
+            type=ReceiptType.STOCKOUT,
+            location="Shelf A-123",  # Specific location that we'll search for
+        )
+        db.session.add(receipt)
+        db.session.flush()
+
+        # Add transaction to stockout
+        transaction = Transaction(itemSKU=sku, count=-5, price=100.00, receipt=receipt)
+        db.session.add(transaction)
+        db.session.commit()
+
+    # Test filtering by location name
+    response = auth_client.get("/records?type=stockout&location_info=Shelf+A-123")
+    assert response.status_code == 200
+    assert b"Shelf A-123" in response.data
+
+    # Test filtering by partial location name
+    response = auth_client.get("/records?type=stockout&location_info=Shelf")
+    assert response.status_code == 200
+    assert b"Shelf A-123" in response.data
+
+    # Test with non-matching location
+    response = auth_client.get(
+        "/records?type=stockout&location_info=NonExistentLocation"
+    )
+    assert response.status_code == 200
+    assert b"Shelf A-123" not in response.data
