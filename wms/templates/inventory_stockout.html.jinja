@@ -30,6 +30,7 @@
             <div id="items">
                 {% for item_form in form.items %}
                     {{ item_form.csrf_token }}
+                    {{ item_form.item_sku_id }}
                     <div class="item-form d-flex align-items-center">
                         <div class="flex-grow-1">{{ render_field(item_form.item_id, placeholder="输入或双击选择物品", autocomplete="off") }}</div>
                         <div class="flex-grow-1">{{ render_field(item_form.stock_count, class="readonly-field") }}</div>
@@ -62,23 +63,54 @@
 
             // Handle adding new item
             addItemButton.addEventListener('click', function() {
-                const template = document.querySelector('.item-form');
-                if (template) {
-                    const clone = template.cloneNode(true);
-                    clone.querySelectorAll('input').forEach(input => {
+                const itemForms = document.querySelectorAll('.item-form');
+                const lastIndex = itemForms.length - 1;
+                const newIndex = lastIndex + 1;
+
+                if (lastIndex >= 0) {
+                    const hiddenField = document.querySelector(`[name="items-${lastIndex}-item_sku_id"]`);
+                    const template = itemForms[0].cloneNode(true);
+                    const newHiddenField = hiddenField.cloneNode();
+                    
+                    // Update hidden field name and clear value
+                    newHiddenField.name = `items-${newIndex}-item_sku_id`;
+                    newHiddenField.value = '';
+                    
+                    // Insert hidden field before the template
+                    itemsDiv.appendChild(newHiddenField);
+                    
+                    // Clear input values
+                    template.querySelectorAll('input').forEach(input => {
                         input.value = '';
+                        
+                        // Update input name and id to use new index
+                        if (input.name) {
+                            input.name = input.name.replace(/items-\d+/, `items-${newIndex}`);
+                        }
+                        if (input.id) {
+                            input.id = input.id.replace(/items-\d+/, `items-${newIndex}`);
+                        }
+                        
                         // Ensure autocomplete is off for newly added item inputs
                         if (input.name && input.name.endsWith('item_id')) {
                             input.setAttribute('autocomplete', 'off');
-                            // Add data attribute for original value
                             input.setAttribute('data-original-value', '');
                         }
+                        
                         // Ensure readonly styling is applied
                         if (input.hasAttribute('readonly')) {
                             input.classList.add('readonly-field');
                         }
                     });
-                    itemsDiv.appendChild(clone);
+
+                    // Update label for attributes if present
+                    template.querySelectorAll('label').forEach(label => {
+                        if (label.htmlFor) {
+                            label.htmlFor = label.htmlFor.replace(/items-\d+/, `items-${newIndex}`);
+                        }
+                    });
+                    
+                    itemsDiv.appendChild(template);
                 }
             });
 
@@ -87,7 +119,33 @@
                 if (event.target.classList.contains('remove-item')) {
                     const itemForms = document.querySelectorAll('.item-form');
                     if (itemForms.length > 1) {
-                        event.target.closest('.item-form').remove();
+                        const itemForm = event.target.closest('.item-form');
+                        const itemFormIndex = Array.from(itemForms).indexOf(itemForm);
+                        // Remove the associated hidden field too
+                        const hiddenField = document.querySelector(`[name="items-${itemFormIndex}-item_sku_id"]`);
+                        if (hiddenField) {
+                            hiddenField.remove();
+                        }
+                        itemForm.remove();
+                        
+                        // Renumber remaining forms
+                        document.querySelectorAll('.item-form').forEach((form, idx) => {
+                            form.querySelectorAll('[name*="items-"]').forEach(input => {
+                                input.name = input.name.replace(/items-\d+/, `items-${idx}`);
+                                if (input.id) {
+                                    input.id = input.id.replace(/items-\d+/, `items-${idx}`);
+                                }
+                            });
+                            
+                            form.querySelectorAll('label[for*="items-"]').forEach(label => {
+                                label.htmlFor = label.htmlFor.replace(/items-\d+/, `items-${idx}`);
+                            });
+                        });
+                        
+                        // Also renumber hidden fields
+                        document.querySelectorAll('[name*="item_sku_id"]').forEach((hidden, idx) => {
+                            hidden.name = hidden.name.replace(/items-\d+/, `items-${idx}`);
+                        });
                     }
                 }
             });
@@ -131,7 +189,13 @@
                     if (itemId) {
                         priceInput.value = itemPrices[itemId].toFixed(2);
                         stockCountInput.value = itemCounts[itemId];
-                        input.setAttribute('data-item-id', itemId); // Store the matched ID
+                        
+                        // Set the hidden field value to the actual item ID
+                        const itemIndex = input.name.match(/items-(\d+)/)[1];
+                        const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
+                        if (hiddenField) {
+                            hiddenField.value = itemId;
+                        }
                         
                         // Highlight the readonly fields briefly to show they've been updated
                         [priceInput, stockCountInput].forEach(field => {
@@ -173,8 +237,14 @@
                     const itemId = itemNameMapping[originalValue];
                     
                     if (itemId) {
-                        // Replace the display text with the actual item ID for form submission
-                        input.value = itemId;
+                        // Get the index from the input name
+                        const itemIndex = input.name.match(/items-(\d+)/)[1];
+                        // Set the hidden field
+                        const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
+                        
+                        if (hiddenField) {
+                            hiddenField.value = itemId;
+                        }
                     } else if (input.value) {
                         hasError = true;
                     }
@@ -190,6 +260,18 @@
             document.querySelectorAll('[name$="item_id"]').forEach(input => {
                 input.setAttribute('data-original-value', input.value);
                 input.setAttribute('autocomplete', 'off');
+                
+                // Also set the hidden field value
+                const name = input.value;
+                const itemId = itemNameMapping[name];
+                
+                if (itemId) {
+                    const itemIndex = input.name.match(/items-(\d+)/)[1];
+                    const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
+                    if (hiddenField) {
+                        hiddenField.value = itemId;
+                    }
+                }
             });
 
             // Apply visual readonly styling to readonly fields

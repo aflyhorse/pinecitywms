@@ -125,8 +125,17 @@ def stockin():
 
         for item_form in form.items:
             try:
-                item_id = int(item_form.item_id.data)
-                if item_id not in items_dict:
+                # Use the hidden item_sku_id field instead of item_id text field
+                item_sku_id = item_form.item_sku_id.data
+                if not item_sku_id:
+                    # Fallback to the old method if hidden field is not populated
+                    item_sku_id = item_form.item_id.data
+                    
+                item_id = int(item_sku_id)
+                
+                # Validate the item exists
+                item = db.session.get(ItemSKU, item_id)
+                if not item:
                     raise ValueError("Invalid item ID")
 
                 transaction = Transaction(
@@ -137,7 +146,7 @@ def stockin():
                 )
                 db.session.add(transaction)
             except ValueError:
-                flash(f"无效的物品: {item_form.item_id.data}", "danger")
+                flash(f"无效的物品", "danger")
                 return render_template(
                     "inventory_stockin.html.jinja", form=form, items=items
                 )
@@ -266,8 +275,17 @@ def stockout():
 
         for item_form in form.items:
             try:
-                item_id = int(item_form.item_id.data)
-                if item_id not in items_dict:
+                # Use the hidden item_sku_id field instead of item_id text field
+                item_sku_id = item_form.item_sku_id.data
+                if not item_sku_id:
+                    # Fallback to the old method if hidden field is not populated
+                    item_sku_id = item_form.item_id.data
+                    
+                item_id = int(item_sku_id)
+                
+                # Validate the item exists
+                item = db.session.get(ItemSKU, item_id)
+                if not item:
                     raise ValueError("Invalid item ID")
 
                 # Check if there's enough stock in the selected warehouse
@@ -282,7 +300,8 @@ def stockout():
                 )
 
                 if available_stock < item_form.quantity.data:
-                    flash(f"库存不足: {items_dict[item_id]['name']}", "danger")
+                    item_name = items_dict.get(item_id, {}).get('name', 'Unknown Item')
+                    flash(f"库存不足: {item_name}", "danger")
                     return render_template(
                         "inventory_stockout.html.jinja",
                         form=form,
@@ -297,7 +316,7 @@ def stockout():
                 )
                 db.session.add(transaction)
             except ValueError:
-                flash(f"无效的物品: {item_form.item_id.data}", "danger")
+                flash("无效的物品", "danger")
                 return render_template(
                     "inventory_stockout.html.jinja",
                     form=form,

@@ -16,6 +16,7 @@
         <div id="items">
             {% for item_form in form.items %}
             {{ item_form.csrf_token }}
+            {{ item_form.item_sku_id }}
             <div class="item-form d-flex align-items-center">
                 <div class="flex-grow-1">
                     {{ render_field(item_form.item_id, placeholder="输入或双击选择物品") }}
@@ -45,11 +46,43 @@
 
         // Handle adding new item
         addItemButton.addEventListener('click', function () {
-            const template = document.querySelector('.item-form');
-            if (template) {
-                const clone = template.cloneNode(true);
-                clone.querySelectorAll('input').forEach(input => input.value = '');
-                itemsDiv.appendChild(clone);
+            const itemForms = document.querySelectorAll('.item-form');
+            const lastIndex = itemForms.length - 1;
+            const newIndex = lastIndex + 1;
+
+            if (lastIndex >= 0) {
+                const hiddenField = document.querySelector(`[name="items-${lastIndex}-item_sku_id"]`);
+                const template = itemForms[0].cloneNode(true);
+                const newHiddenField = hiddenField.cloneNode();
+                
+                // Update hidden field name
+                newHiddenField.name = `items-${newIndex}-item_sku_id`;
+                newHiddenField.value = '';
+                
+                // Insert hidden field before the template
+                itemsDiv.appendChild(newHiddenField);
+                
+                // Clear input values
+                template.querySelectorAll('input').forEach(input => {
+                    input.value = '';
+                    
+                    // Update the input name and id to use the new index
+                    if (input.name) {
+                        input.name = input.name.replace(/items-\d+/, `items-${newIndex}`);
+                    }
+                    if (input.id) {
+                        input.id = input.id.replace(/items-\d+/, `items-${newIndex}`);
+                    }
+                });
+                
+                // Update label for attributes if present
+                template.querySelectorAll('label').forEach(label => {
+                    if (label.htmlFor) {
+                        label.htmlFor = label.htmlFor.replace(/items-\d+/, `items-${newIndex}`);
+                    }
+                });
+                
+                itemsDiv.appendChild(template);
             }
         });
 
@@ -58,7 +91,33 @@
             if (event.target.classList.contains('remove-item')) {
                 const itemForms = document.querySelectorAll('.item-form');
                 if (itemForms.length > 1) {
-                    event.target.closest('.item-form').remove();
+                    const itemForm = event.target.closest('.item-form');
+                    const itemFormIndex = Array.from(itemForms).indexOf(itemForm);
+                    // Remove the associated hidden field too
+                    const hiddenField = document.querySelector(`[name="items-${itemFormIndex}-item_sku_id"]`);
+                    if (hiddenField) {
+                        hiddenField.remove();
+                    }
+                    itemForm.remove();
+                    
+                    // Renumber remaining forms
+                    document.querySelectorAll('.item-form').forEach((form, idx) => {
+                        form.querySelectorAll('[name*="items-"]').forEach(input => {
+                            input.name = input.name.replace(/items-\d+/, `items-${idx}`);
+                            if (input.id) {
+                                input.id = input.id.replace(/items-\d+/, `items-${idx}`);
+                            }
+                        });
+                        
+                        form.querySelectorAll('label[for*="items-"]').forEach(label => {
+                            label.htmlFor = label.htmlFor.replace(/items-\d+/, `items-${idx}`);
+                        });
+                    });
+                    
+                    // Also renumber hidden fields
+                    document.querySelectorAll('[name*="item_sku_id"]').forEach((hidden, idx) => {
+                        hidden.name = hidden.name.replace(/items-\d+/, `items-${idx}`);
+                    });
                 }
             }
         });
@@ -81,7 +140,14 @@
             const input = event.target;
             if (input.name && input.name.endsWith('item_id')) {
                 // If exact match found, keep it
-                if (itemNameMapping[input.value]) {
+                const itemId = itemNameMapping[input.value];
+                if (itemId) {
+                    // Set the hidden field value to the actual item ID
+                    const itemIndex = input.name.match(/items-(\d+)/)[1];
+                    const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
+                    if (hiddenField) {
+                        hiddenField.value = itemId;
+                    }
                     return;
                 }
                 
@@ -102,16 +168,25 @@
             }
         });
 
-        // Store selected item's ID in the form before submission
+        // Handle form submission with the hidden IDs
         const form = document.querySelector('form');
         form.addEventListener('submit', function (event) {
             const itemInputs = document.querySelectorAll('[name$="item_id"]');
             let hasError = false;
 
             for (let input of itemInputs) {
-                const id = itemNameMapping[input.value];
-                if (id) {
-                    input.value = id;
+                const name = input.value;
+                const itemId = itemNameMapping[name];
+                
+                if (itemId) {
+                    // Get the index from the input name
+                    const itemIndex = input.name.match(/items-(\d+)/)[1];
+                    // Set the hidden field
+                    const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
+                    
+                    if (hiddenField) {
+                        hiddenField.value = itemId;
+                    }
                 } else if (input.value) {
                     hasError = true;
                 }
@@ -120,6 +195,20 @@
             if (hasError) {
                 event.preventDefault();
                 alert('请从列表中选择有效的物品');
+            }
+        });
+        
+        // Set initial values for hidden fields based on visible fields
+        document.querySelectorAll('[name$="item_id"]').forEach(input => {
+            const name = input.value;
+            const itemId = itemNameMapping[name];
+            
+            if (itemId) {
+                const itemIndex = input.name.match(/items-(\d+)/)[1];
+                const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
+                if (hiddenField) {
+                    hiddenField.value = itemId;
+                }
             }
         });
     });

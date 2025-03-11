@@ -10,6 +10,7 @@ from wtforms import (
     DecimalField,
     FieldList,
     FormField,
+    HiddenField,
 )
 from wtforms.validators import DataRequired, InputRequired, Length
 
@@ -64,6 +65,7 @@ class ItemCreateForm(FlaskForm):
 
 
 class StockInItemForm(FlaskForm):
+    item_sku_id = HiddenField("物品ID")  # Hidden field for the actual item SKU ID
     item_id = StringField(
         "物品", validators=[DataRequired()], render_kw={"list": "item-ids"}
     )
@@ -79,6 +81,7 @@ class StockInForm(FlaskForm):
 
 
 class StockOutItemForm(FlaskForm):
+    item_sku_id = HiddenField("物品ID")  # Hidden field for the actual item SKU ID
     item_id = StringField(
         "物品", validators=[DataRequired()], render_kw={"list": "item-ids"}
     )
