@@ -51,7 +51,7 @@
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">品牌/规格</label>
-                        <input type="text" name="sku_desc" class="form-control" value="{{ sku_desc or '' }}" placeholder="搜索规格或品牌">
+                        <input type="text" name="sku_desc" class="form-control" value="{{ sku_desc or '' }}" placeholder="搜索品牌或规格">
                     </div>
                     {% if record_type == 'stockin' %}
                     <div class="col-md-2">
@@ -60,13 +60,13 @@
                     </div>
                     {% else %}
                     <div class="col-md-2">
-                        <label class="form-label">区域或部门</label>
-                        <input type="text" name="location_info" class="form-control" value="{{ location_info or '' }}" placeholder="搜索区域或部门">
+                        <label class="form-label">区域/部门/具体地点</label>
+                        <input type="text" name="location_info" class="form-control" value="{{ location_info or '' }}" placeholder="搜索地点">
                     </div>
                     {% endif %}
                     <div class="col-md-2">
                         <button type="submit" class="btn btn-primary">查询</button>
-                        <a href="{{ url_for('export_records') }}{{ '?' + request.query_string.decode() if request.query_string }}" class="btn btn-success">导出</a>
+                        <a href="{{ url_for('records_export') }}{{ '?' + request.query_string.decode() if request.query_string }}" class="btn btn-success">导出</a>
                     </div>
                 </div>
             </form>

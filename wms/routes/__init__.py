@@ -3,10 +3,10 @@ from flask_login import login_required
 from wms import app
 
 # Import all route modules to register them
-from . import auth, inventory, item, records  # noqa: F401
+from . import auth, inventory, item, records, batch  # noqa: F401
 
 
-__all__ = ["auth", "item", "inventory", "records"]
+__all__ = ["auth", "item", "inventory", "records", "batch"]
 
 
 @app.route("/")

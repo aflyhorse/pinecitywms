@@ -11,6 +11,7 @@ from wtforms import (
     FieldList,
     FormField,
     HiddenField,
+    FileField,
 )
 from wtforms.validators import DataRequired, InputRequired, Length
 
@@ -78,6 +79,12 @@ class StockInForm(FlaskForm):
     warehouse = SelectField("库房", coerce=int, validators=[InputRequired()])
     items = FieldList(FormField(StockInItemForm), min_entries=1)
     submit = SubmitField("入库")
+
+
+class BatchStockInForm(FlaskForm):
+    warehouse = SelectField("库房", coerce=int, validators=[InputRequired()])
+    file = FileField("选择文件", validators=[DataRequired()])
+    submit = SubmitField("上传")
 
 
 class StockOutItemForm(FlaskForm):

@@ -4,6 +4,7 @@ Flask-Login
 Flask-SQLAlchemy
 Flask-WTF
 openpyxl
+pandas
 pytest
 python-dotenv
 

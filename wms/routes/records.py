@@ -11,13 +11,14 @@ from wms.models import (
     Transaction,
     ItemSKU,
     Item,
+    User,
 )
 from datetime import datetime, timedelta
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func, and_, select, distinct
-from openpyxl import Workbook
 from io import BytesIO
 from decimal import Decimal
+import pandas as pd
 
 
 @app.route("/records", methods=["GET"])
@@ -289,7 +290,12 @@ def statistics_fee():
         # Update department total
         stats_data["departments"][department_id]["total"] += value
 
-        # Update area's department structure (for the area tab)
+        # Update area total
+        if area_id not in stats_data["areas"]:
+            stats_data["areas"][area_id] = {
+                "total": Decimal("0"),
+                "departments": {},
+            }
         if department_id not in stats_data["areas"][area_id]["departments"]:
             stats_data["areas"][area_id]["departments"][department_id] = Decimal("0")
         stats_data["areas"][area_id]["departments"][department_id] += value
@@ -441,9 +447,9 @@ def statistics_usage():
     )
 
 
-@app.route("/export_records")
+@app.route("/records/export")
 @login_required
-def export_records():
+def records_export():
     # Get filter parameters from request - same as records route
     record_type = request.args.get("type", "stockout")
     warehouse_id = request.args.get("warehouse")
@@ -454,7 +460,7 @@ def export_records():
     item_name = request.args.get("item_name")
     sku_desc = request.args.get("sku_desc")
 
-    # Get warehouses accessible by the current user - same as records route
+    # Get warehouses accessible by the current user
     if current_user.is_admin:
         warehouses = Warehouse.query.all()
     else:
@@ -462,24 +468,33 @@ def export_records():
             (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
         ).all()
 
-    # Query base - join necessary relationships
+    # Build the base query with explicit join order
     query = (
-        db.session.query(Transaction)
-        .join(Receipt)
-        .join(Warehouse)
-        .join(ItemSKU)
-        .join(Item)
-        .options(
-            joinedload(Transaction.receipt).joinedload(Receipt.warehouse),
-            joinedload(Transaction.receipt).joinedload(Receipt.operator),
-            joinedload(Transaction.receipt).joinedload(Receipt.area),
-            joinedload(Transaction.receipt).joinedload(Receipt.department),
-            joinedload(Transaction.itemSKU).joinedload(ItemSKU.item),
+        db.session.query(
+            Receipt.date,
+            Item.name.label("item_name"),
+            ItemSKU.brand,
+            ItemSKU.spec,
+            Transaction.count,
+            Transaction.price,
+            Warehouse.name.label("warehouse_name"),
+            Receipt.refcode,
+            User.nickname.label("operator_name"),
+            Area.name.label("area_name"),
+            Department.name.label("department_name"),
+            Receipt.location,
         )
-        .order_by(Receipt.date.desc(), Transaction.id.asc())
+        .select_from(Transaction)
+        .join(Receipt, Transaction.receipt_id == Receipt.id)
+        .join(ItemSKU, Transaction.itemSKU_id == ItemSKU.id)
+        .join(Item, ItemSKU.item_id == Item.id)
+        .join(Warehouse, Receipt.warehouse_id == Warehouse.id)
+        .outerjoin(User, Receipt.operator_id == User.id)
+        .outerjoin(Area, Receipt.area_id == Area.id)
+        .outerjoin(Department, Receipt.department_id == Department.id)
     )
 
-    # Apply all the same filters as the records route
+    # Apply filters
     if not current_user.is_admin:
         query = query.filter(
             (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
@@ -490,14 +505,10 @@ def export_records():
     else:
         query = query.filter(Receipt.type == ReceiptType.STOCKOUT)
         if location_info:
-            query = (
-                query.outerjoin(Area)
-                .outerjoin(Department)
-                .filter(
-                    (Area.name.ilike(f"%{location_info}%"))
-                    | (Department.name.ilike(f"%{location_info}%"))
-                    | (Receipt.location.ilike(f"%{location_info}%"))
-                )
+            query = query.filter(
+                (Area.name.ilike(f"%{location_info}%"))
+                | (Department.name.ilike(f"%{location_info}%"))
+                | (Receipt.location.ilike(f"%{location_info}%"))
             )
 
     if warehouse_id:
@@ -531,61 +542,50 @@ def export_records():
             | (ItemSKU.spec.ilike(f"%{sku_desc}%"))
         )
 
-    # Get all results for export
-    transactions = query.all()
+    # Execute query and convert to pandas DataFrame
+    results = query.all()
+    df = pd.DataFrame([r._asdict() for r in results])
 
-    # Create Excel workbook
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "操作记录"
-
-    # Write headers
-    headers = ["日期", "物品", "规格", "数量", "价格", "仓库"]
-    if record_type == "stockin":
-        headers.append("单号")
-    else:
-        headers.extend(["操作员", "区域", "部门", "具体地点"])
-
-    for col, header in enumerate(headers, start=1):
-        ws.cell(row=1, column=col, value=header)
-
-    # Write data
-    for row, trans in enumerate(transactions, start=2):
-        ws.cell(row=row, column=1, value=trans.receipt.date.strftime("%Y-%m-%d %H:%M"))
-        ws.cell(row=row, column=2, value=trans.itemSKU.item.name)
-        ws.cell(
-            row=row, column=3, value=f"{trans.itemSKU.brand} - {trans.itemSKU.spec}"
+    if not df.empty:
+        # Format the data
+        df["date"] = df["date"].dt.strftime("%Y-%m-%d %H:%M")
+        df["count"] = df.apply(
+            lambda x: x["count"] if record_type == "stockin" else -x["count"], axis=1
         )
-        ws.cell(
-            row=row,
-            column=4,
-            value=trans.count if record_type == "stockin" else -trans.count,
-        )
-        # Format price as string with 2 decimal places for Excel
-        ws.cell(row=row, column=5, value="{:.2f}".format(float(trans.price)))
-        ws.cell(row=row, column=6, value=trans.receipt.warehouse.name)
+        df["price"] = df["price"].apply(lambda x: "{:.2f}".format(float(x)))
 
+        # Select and rename columns based on record type
         if record_type == "stockin":
-            ws.cell(row=row, column=7, value=trans.receipt.refcode)
+            columns = {
+                "date": "日期",
+                "item_name": "物品",
+                "brand": "品牌",
+                "spec": "规格",
+                "count": "数量",
+                "price": "价格",
+                "warehouse_name": "仓库",
+                "refcode": "单号",
+            }
         else:
-            ws.cell(row=row, column=7, value=trans.receipt.operator.nickname)
-            area_name = trans.receipt.area.name if trans.receipt.area else ""
-            ws.cell(row=row, column=8, value=area_name)
-            department_name = (
-                trans.receipt.department.name if trans.receipt.department else ""
-            )
-            ws.cell(row=row, column=9, value=department_name)
-            location = trans.receipt.location or ""
-            ws.cell(row=row, column=10, value=location)
+            columns = {
+                "date": "日期",
+                "item_name": "物品",
+                "brand": "品牌",
+                "spec": "规格",
+                "count": "数量",
+                "price": "价格",
+                "warehouse_name": "仓库",
+                "operator_name": "操作员",
+                "area_name": "区域",
+                "department_name": "部门",
+                "location": "具体地点",
+            }
 
-    # Format price column as number with 2 decimal places
-    for row in range(2, len(transactions) + 2):
-        cell = ws.cell(row=row, column=5)
-        cell.number_format = "0.00"
+        df = df[columns.keys()].rename(columns=columns)
 
-    # Save to BytesIO
+    # Create Excel file in memory
     excel_file = BytesIO()
-    wb.save(excel_file)
+    df.to_excel(excel_file, index=False, engine="openpyxl")
     excel_file.seek(0)
 
     # Get warehouse name for filename
@@ -595,7 +595,7 @@ def export_records():
         if warehouse:
             warehouse_name = warehouse.name
 
-    # Generate filename based on current datetime and warehouse
+    # Generate filename
     filename = (
         f"records_{warehouse_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     )

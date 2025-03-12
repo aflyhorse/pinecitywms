@@ -1,4 +1,4 @@
-from flask import render_template, request, url_for, redirect, flash
+from flask import render_template, url_for, redirect, flash
 from flask_login import login_required, login_user, logout_user
 from wms import app
 from wms.models import User
@@ -16,7 +16,10 @@ def login():
             and login_user(user, remember=form.remember.data)
         ):
             flash("登录成功。", "success")
-            return redirect(request.args.get("next") or url_for("inventory"))
+            return redirect(
+                url_for("inventory")
+            )  # temporary direct to inventory when dashboard is not ready
+            # return redirect(request.args.get("next") or url_for("inventory"))
         else:
             flash("用户名/密码错误。", "danger")
             return redirect(url_for("login"))

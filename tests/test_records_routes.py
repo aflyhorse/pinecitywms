@@ -460,7 +460,7 @@ def test_export_records(auth_client, test_warehouse, test_customer):
         db.session.commit()
 
     # Test export stockin records
-    response = auth_client.get("/export_records?type=stockin")
+    response = auth_client.get("/records/export?type=stockin")
     assert response.status_code == 200
     # Check that we received an Excel file
     assert (
@@ -470,7 +470,7 @@ def test_export_records(auth_client, test_warehouse, test_customer):
     assert "attachment" in response.headers.get("Content-Disposition", "")
 
     # Test export stockout records
-    response = auth_client.get("/export_records?type=stockout")
+    response = auth_client.get("/records/export?type=stockout")
     assert response.status_code == 200
     # Check that we received an Excel file
     assert (
@@ -481,7 +481,7 @@ def test_export_records(auth_client, test_warehouse, test_customer):
 
     # Test with filtering
     response = auth_client.get(
-        f"/export_records?type=stockout&warehouse={test_warehouse}"
+        f"/records/export?type=stockout&warehouse={test_warehouse}"
     )
     assert response.status_code == 200
 
@@ -495,7 +495,7 @@ def test_export_records_access_control(client, regular_user, regular_warehouse):
     )
 
     # Regular user should be able to export records
-    response = client.get("/export_records")
+    response = client.get("/records/export")
     assert response.status_code == 200
     assert (
         response.mimetype
@@ -520,7 +520,7 @@ def test_export_records_access_control(client, regular_user, regular_warehouse):
         other_warehouse_id = other_warehouse.id
 
     # Try to export from unauthorized warehouse - should silently exclude unauthorized data
-    response = client.get(f"/export_records?warehouse={other_warehouse_id}")
+    response = client.get(f"/records/export?warehouse={other_warehouse_id}")
     assert (
         response.status_code == 200
     )  # Should still work but exclude unauthorized data
@@ -645,7 +645,7 @@ def test_export_records_with_filters(auth_client, test_warehouse, test_customer)
         item_name = sku.item.name
 
     # Test export with refcode filter - this should hit line 383
-    response = auth_client.get("/export_records?type=stockin&refcode=SPECIAL-EXPORT")
+    response = auth_client.get("/records/export?type=stockin&refcode=SPECIAL-EXPORT")
     assert response.status_code == 200
 
     # Test export with date filters - this should hit lines 373-376
@@ -653,22 +653,22 @@ def test_export_records_with_filters(auth_client, test_warehouse, test_customer)
     start_date = (today - timedelta(days=30)).strftime("%Y-%m-%d")
     end_date = today.strftime("%Y-%m-%d")
     response = auth_client.get(
-        f"/export_records?start_date={start_date}&end_date={end_date}"
+        f"/records/export?start_date={start_date}&end_date={end_date}"
     )
     assert response.status_code == 200
 
     # Test export with location filter - this should hit lines 379-380
     response = auth_client.get(
-        "/export_records?type=stockout&location_info=Special+Location"
+        "/records/export?type=stockout&location_info=Special+Location"
     )
     assert response.status_code == 200
 
     # Test export with item name filter - this should hit line 386
-    response = auth_client.get(f"/export_records?item_name={item_name}")
+    response = auth_client.get(f"/records/export?item_name={item_name}")
     assert response.status_code == 200
 
     # Test export with sku description filter - this should hit line 389
-    response = auth_client.get(f"/export_records?sku_desc={sku.brand}")
+    response = auth_client.get(f"/records/export?sku_desc={sku.brand}")
     assert response.status_code == 200
 
 

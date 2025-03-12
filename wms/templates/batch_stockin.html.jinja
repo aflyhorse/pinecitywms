@@ -1,0 +1,50 @@
+{% extends 'base.html.jinja' %}
+{% from 'bootstrap5/form.html' import render_field %}
+
+{% block content %}
+<div class="container mt-4">
+    <h3>批量入库</h3>
+    
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>下载模板</h5>
+        </div>
+        <div class="card-body">
+            <p>下载库存导入模板，按要求填写后上传：</p>
+            <a href="{{ url_for('stockin_template') }}" class="btn btn-primary">
+                <i class="fas fa-download"></i> 下载导入模板
+            </a>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h5>上传数据</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                {{ form.csrf_token }}
+                
+                {{ render_field(form.warehouse, form_type='horizontal', horizontal_columns=('sm', 2, 10)) }}
+                {{ render_field(form.file, form_type='horizontal', horizontal_columns=('sm', 2, 10)) }}
+                
+                <div class="mb-3 row">
+                    <div class="col-sm-10 offset-sm-2">
+                        {{ render_field(form.submit, class='btn btn-success', id='submitBtn') }}
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.classList.remove('btn-success');
+    submitBtn.classList.add('btn-secondary');
+    submitBtn.disabled = true;
+    submitBtn.value = '已上传，处理中……';
+});
+</script>
+{% endblock %}
