@@ -8,7 +8,7 @@
 
 blinker==1.9.0
     # via flask
-bootstrap-flask==2.4.1
+bootstrap-flask==2.4.2
     # via -r requirements.in
 click==8.1.8
     # via flask
@@ -58,7 +58,7 @@ pytest-cov==6.0.0
     # via -r requirements.in
 python-dotenv==1.0.1
     # via -r requirements.in
-sqlalchemy==2.0.38
+sqlalchemy==2.0.39
     # via flask-sqlalchemy
 typing-extensions==4.12.2
     # via sqlalchemy
