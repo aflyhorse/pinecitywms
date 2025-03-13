@@ -1,4 +1,4 @@
-from flask import render_template, url_for, redirect, flash, request
+from flask import render_template, url_for, redirect, flash, request, send_file
 from flask_login import login_required, current_user
 from wms import app, db
 from wms.utils import admin_required
@@ -15,6 +15,9 @@ from wms.models import (
 )
 from wms.forms import StockInForm, ItemSearchForm, StockOutForm
 from sqlalchemy import and_
+from io import BytesIO
+import pandas as pd
+from datetime import datetime
 
 
 @app.route("/inventory", methods=["GET", "POST"])
@@ -337,4 +340,99 @@ def stockout():
         "inventory_stockout.html.jinja",
         form=form,
         items=items,
+    )
+
+
+@app.route("/inventory/export")
+@login_required
+def inventory_export():
+    # Admin can see inventory of all warehouses
+    if current_user.is_admin:
+        warehouses = Warehouse.query.all()
+    else:
+        # Regular users can only see public warehouses and their own warehouses
+        warehouses = Warehouse.query.filter(
+            (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
+        ).all()
+
+    # Get selected warehouse from query params
+    selected_warehouse_id = request.args.get("warehouse", type=int)
+    selected_warehouse = None
+
+    if selected_warehouse_id:
+        selected_warehouse = next(
+            (w for w in warehouses if w.id == selected_warehouse_id),
+            warehouses[0] if warehouses else None,
+        )
+    else:
+        selected_warehouse = warehouses[0] if warehouses else None
+
+    if not selected_warehouse:
+        flash("未选择有效的仓库", "danger")
+        return redirect(url_for("inventory"))
+
+    # Build query to get inventory data
+    query = (
+        db.session.query(
+            Item.name.label("item_name"),
+            ItemSKU.id,
+            ItemSKU.brand,
+            ItemSKU.spec,
+            WarehouseItemSKU.count,
+        )
+        .join(ItemSKU, WarehouseItemSKU.itemSKU_id == ItemSKU.id)
+        .join(Item, ItemSKU.item_id == Item.id)
+        .filter(
+            and_(
+                WarehouseItemSKU.warehouse_id == selected_warehouse.id,
+                WarehouseItemSKU.count > 0,
+            )
+        )
+    )
+
+    # Apply filters from query string
+    name = request.args.get("name", "")
+    brand = request.args.get("brand", "")
+    spec = request.args.get("spec", "")
+
+    if name:
+        query = query.filter(Item.name.ilike(f"%{name}%"))
+    if brand:
+        query = query.filter(ItemSKU.brand.ilike(f"%{brand}%"))
+    if spec:
+        query = query.filter(ItemSKU.spec.ilike(f"%{spec}%"))
+
+    # Add ordering
+    query = query.order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
+
+    # Execute query
+    results = query.all()
+
+    # Convert to DataFrame
+    df = pd.DataFrame(
+        [
+            {
+                "物品": row.item_name,
+                "编号": row.id,
+                "品牌": row.brand,
+                "规格": row.spec,
+                "数量": row.count,
+            }
+            for row in results
+        ]
+    )
+
+    # Create Excel file in memory
+    excel_file = BytesIO()
+    df.to_excel(excel_file, index=False, engine="openpyxl")
+    excel_file.seek(0)
+
+    # Generate filename
+    filename = f"inventory_{selected_warehouse.name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+    return send_file(
+        excel_file,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
     )

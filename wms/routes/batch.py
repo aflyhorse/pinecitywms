@@ -87,7 +87,12 @@ def batch_stockin():
                 quantity = int(row["数量"]) if not pd.isna(row["数量"]) else 0
                 price = Decimal(row["价格"]) if not pd.isna(row["价格"]) else Decimal(0)
 
-                if not item_name or not brand or not spec or item_name == "样例-灯":
+                if (
+                    not item_name
+                    or not brand
+                    or not spec
+                    or item_name == "样例-LED长方形灯"
+                ):
                     continue  # Skip incomplete rows
 
                 # Find or create item
@@ -150,7 +155,7 @@ def stockin_template():
     df = pd.DataFrame(columns=["物品", "品牌", "规格", "数量", "价格"])
 
     # Add a sample row (optional)
-    df.loc[0] = ["样例-灯", "样例-飞利浦", "样例-10x20cm，3500K", 10, 9.99]
+    df.loc[0] = ["样例-LED长方形灯", "飞利浦", "10*20cm，8W 6500K", 10, 9.99]
 
     # Create Excel in memory
     output = BytesIO()

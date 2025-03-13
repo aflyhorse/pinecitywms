@@ -4,9 +4,16 @@
 {% from 'bootstrap5/pagination.html' import render_pagination %}
 {% block content %}
     <div class="container p-5 my-5">
-        <div class="d-flex mb-3">
-            {% if current_user.is_admin %}<a href="{{ url_for('stockin') }}" class="btn btn-primary me-2">入库</a>{% endif %}
-            <a href="{{ url_for('stockout') }}" class="btn btn-danger">出库</a>
+        <div class="d-flex justify-content-between mb-3">
+            <div>
+                {% if current_user.is_admin %}<a href="{{ url_for('stockin') }}" class="btn btn-primary me-2">入库</a>{% endif %}
+                <a href="{{ url_for('stockout') }}" class="btn btn-danger">出库</a>
+            </div>
+            <div>
+                <a href="{{ url_for('inventory_export', warehouse=selected_warehouse.id if selected_warehouse else '', name=itemSearchForm.name.data, brand=itemSearchForm.brand.data, spec=itemSearchForm.spec.data) }}" class="btn btn-success">
+                    <i class="bi bi-file-earmark-excel"></i> 导出
+                </a>
+            </div>
         </div>
         <div class="card mb-4">
             <div class="card-header">
