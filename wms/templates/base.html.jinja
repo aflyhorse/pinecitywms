@@ -8,6 +8,8 @@
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <meta name="description" content="青松城设备科仓库管理系统 - 用于管理设备和物品的仓库管理系统">
             <meta name="keywords" content="仓库管理,设备管理,物品管理,青松城,设备科">
+            <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+            <link rel="alternate icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/png">
             {% block styles %}
                 {{ bootstrap.load_css() }}
             {% endblock styles %}
