@@ -117,15 +117,14 @@ def batch_stockin():
                     db.session.add(item_sku)
                     db.session.flush()  # To get the SKU ID
 
-                # Create transaction for this item
-                if quantity > 0:
-                    transaction = Transaction(
-                        itemSKU_id=item_sku.id,
-                        count=quantity,
-                        price=price,
-                        receipt_id=receipt.id,
-                    )
-                    db.session.add(transaction)
+                # Create transaction even if quantity=0
+                transaction = Transaction(
+                    itemSKU_id=item_sku.id,
+                    count=quantity,
+                    price=price,
+                    receipt_id=receipt.id,
+                )
+                db.session.add(transaction)
                 processed_count += 1
 
             # Commit transactions
