@@ -102,5 +102,6 @@ class StockOutForm(FlaskForm):
     area = SelectField("区域", coerce=int, validators=[InputRequired()])
     department = SelectField("部门", coerce=int, validators=[InputRequired()])
     location = StringField("具体地点", validators=[InputRequired(), Length(1, 30)])
+    note = StringField("备注", validators=[Length(0, 100)])
     items = FieldList(FormField(StockOutItemForm), min_entries=1)
     submit = SubmitField("出库")

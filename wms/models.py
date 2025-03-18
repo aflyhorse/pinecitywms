@@ -128,6 +128,8 @@ class Receipt(db.Model):
     department: Mapped["Department"] = relationship("Department")
     # Specific location for stockout
     location: Mapped[str] = mapped_column(String(30), nullable=True)
+    # Additional notes for stockout and takestock
+    note: Mapped[str] = mapped_column(String(100), nullable=True)
 
     @property
     def sum(self) -> Decimal:

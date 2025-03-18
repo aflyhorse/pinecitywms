@@ -483,6 +483,7 @@ def records_export():
             Area.name.label("area_name"),
             Department.name.label("department_name"),
             Receipt.location,
+            Receipt.note,
         )
         .select_from(Transaction)
         .join(Receipt, Transaction.receipt_id == Receipt.id)
@@ -579,6 +580,7 @@ def records_export():
                 "area_name": "区域",
                 "department_name": "部门",
                 "location": "具体地点",
+                "note": "备注",
             }
 
         df = df[columns.keys()].rename(columns=columns)

@@ -22,7 +22,8 @@
                 <div class="col-md-6">{{ render_field(form.department) }}</div>
             </div>
             <div class="row mb-3">
-                <div class="col-md-12">{{ render_field(form.location) }}</div>
+                <div class="col-md-6">{{ render_field(form.location) }}</div>
+                <div class="col-md-6">{{ render_field(form.note) }}</div>
             </div>
             <datalist id="item-ids">
                 {% for id, name, price, count in items %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
