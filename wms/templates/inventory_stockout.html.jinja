@@ -1,5 +1,6 @@
 {% extends "base.html.jinja" %}
 {% from 'bootstrap5/form.html' import render_field %}
+{% from 'bootstrap5/utils.html' import render_icon %}
 {% block content %}
     <style>
         /* Style for readonly fields */
@@ -37,7 +38,9 @@
                         <div class="flex-grow-1">{{ render_field(item_form.stock_count, class="readonly-field") }}</div>
                         <div class="flex-grow-1">{{ render_field(item_form.quantity) }}</div>
                         <div class="flex-grow-1">{{ render_field(item_form.price, class="readonly-field") }}</div>
-                        <button type="button" class="btn btn-danger remove-item">x</button>
+                        <div class="ms-2">
+                            <button type="button" class="btn btn-danger remove-item">{{ render_icon('trash') }}</button>
+                        </div>
                     </div>
                 {% endfor %}
             </div>
