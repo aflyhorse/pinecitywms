@@ -276,6 +276,7 @@ def stockout():
             area=area,
             department=department,
             location=form.location.data,
+            note=None if not form.note.data else form.note.data,
         )
         db.session.add(receipt)
         db.session.flush()

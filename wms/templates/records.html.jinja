@@ -1,5 +1,6 @@
 {% extends "base.html.jinja" %}
 {% from 'bootstrap5/pagination.html' import render_pagination %}
+{% from 'bootstrap5/utils.html' import render_icon %}
 
 {% block content %}
 <div class="container p-5 my-5">
@@ -89,6 +90,7 @@
                         <th>部门</th>
                         <th>具体地点</th>
                         {% endif %}
+                        <th> </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -108,6 +110,13 @@
                             <td>{{ transaction.receipt.department.name if transaction.receipt.department else '' }}</td>
                             <td>{{ transaction.receipt.location }}</td>
                             {% endif %}
+                            <td>
+                                {% if transaction.receipt.note %}
+                                <span data-bs-toggle="tooltip" data-bs-placement="right" title="{{ transaction.receipt.note }}">
+                                    {{ render_icon('info-circle') }}
+                                </span>
+                                {% endif %}
+                            </td>
                         </tr>
                     {% endfor %}
                 </tbody>
@@ -129,4 +138,14 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
 {% endblock content %}
