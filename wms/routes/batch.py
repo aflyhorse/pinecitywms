@@ -86,6 +86,7 @@ def batch_stockin():
                 refcode=refcode,
                 warehouse_id=warehouse.id,
                 type=ReceiptType.STOCKIN,
+                date=form.date.data,  # Use the date from the form
             )
             db.session.add(receipt)
             db.session.flush()  # Flush to get receipt ID

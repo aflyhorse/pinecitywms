@@ -26,6 +26,7 @@
                 {{ form.csrf_token }}
                 
                 {{ render_field(form.warehouse, form_type='horizontal', horizontal_columns=('sm', 2, 10)) }}
+                {{ render_field(form.date, form_type='horizontal', horizontal_columns=('sm', 2, 10), type='date') }}
                 {{ render_field(form.file, form_type='horizontal', horizontal_columns=('sm', 2, 10)) }}
                 
                 <div class="mb-3 row">

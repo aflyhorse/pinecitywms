@@ -87,6 +87,7 @@ class StockInForm(FlaskForm):
 
 class BatchStockInForm(FlaskForm):
     warehouse = SelectField("库房", coerce=int, validators=[InputRequired()])
+    date = DateField("日期", validators=[DataRequired()], default=datetime.now().date())
     file = FileField("选择文件", validators=[InputRequired()])
     submit = SubmitField("上传")
 
