@@ -11,6 +11,7 @@ from wtforms import (
     FormField,
     HiddenField,
     FileField,
+    DateField,
 )
 from wtforms.validators import (
     DataRequired,
@@ -19,6 +20,7 @@ from wtforms.validators import (
     EqualTo,
     ValidationError,
 )
+from datetime import datetime
 
 
 class LoginForm(FlaskForm):
@@ -78,6 +80,7 @@ class StockInItemForm(FlaskForm):
 class StockInForm(FlaskForm):
     refcode = StringField("入库单号", validators=[InputRequired(), Length(1, 30)])
     warehouse = SelectField("库房", coerce=int, validators=[InputRequired()])
+    date = DateField("日期", validators=[DataRequired()], default=datetime.now)
     items = FieldList(FormField(StockInItemForm), min_entries=1)
     submit = SubmitField("入库")
 
@@ -114,6 +117,7 @@ class StockOutForm(FlaskForm):
         validators=[Length(0, 100)],
         render_kw={"placeholder": "选填：其他涉及具体位置/部件的说明"},
     )
+    date = DateField("日期", validators=[DataRequired()], default=datetime.now)
     items = FieldList(FormField(StockOutItemForm), min_entries=1)
     submit = SubmitField("出库")
 

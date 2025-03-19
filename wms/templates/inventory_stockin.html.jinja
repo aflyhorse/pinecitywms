@@ -7,7 +7,10 @@
     <h2>入库</h2>
     <form method="post">
         {{ form.csrf_token }}
-        {{ render_field(form.refcode) }}
+        <div class="row">
+            <div class="col-md-6">{{ render_field(form.refcode) }}</div>
+            <div class="col-md-6">{{ render_field(form.date, type="date") }}</div>
+        </div>
         {{ render_field(form.warehouse) }}
         <datalist id="item-ids">
             {% for id, name in items %}

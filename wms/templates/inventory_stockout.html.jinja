@@ -17,6 +17,7 @@
             {{ form.csrf_token }}
             <div class="row mb-3">
                 <div class="col-md-6">{{ render_field(form.warehouse) }}</div>
+                <div class="col-md-6">{{ render_field(form.date, type="date") }}</div>
             </div>
             <div class="row mb-3">
                 <div class="col-md-6">{{ render_field(form.area) }}</div>
