@@ -183,6 +183,7 @@ def stockin():
             refcode=form.refcode.data,
             warehouse_id=form.warehouse.data,
             type=ReceiptType.STOCKIN,
+            date=form.date.data,  # Use the date from the form
         )
         
         try:
@@ -363,6 +364,7 @@ def stockout():
             department=department,
             location=form.location.data,
             note=None if not form.note.data else form.note.data,
+            date=form.date.data,  # Use the date from the form
         )
         db.session.add(receipt)
         db.session.flush()
