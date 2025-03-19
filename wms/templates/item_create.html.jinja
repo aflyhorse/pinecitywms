@@ -18,8 +18,8 @@
         <div id="new-item-div" class="mb-3">
             {{ render_field(form.new_item_name) }}
         </div>
-        {{ render_field(form.brand) }}
-        {{ render_field(form.spec) }}
+        {{ render_field(form.brand, placeholder="若没有品牌，填写'无'") }}
+        {{ render_field(form.spec, placeholder="若没有规格，填写'通用'") }}
         {{ render_field(form.submit) }}
     </form>
     <a href="{{ url_for('item') }}" class="btn btn-secondary">返回</a>
