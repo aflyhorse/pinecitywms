@@ -12,7 +12,7 @@ bootstrap-flask==2.4.2
     # via -r requirements.in
 click==8.1.8
     # via flask
-coverage[toml]==7.6.12
+coverage[toml]==7.7.0
     # via pytest-cov
 et-xmlfile==2.0.0
     # via openpyxl
@@ -44,7 +44,7 @@ markupsafe==3.0.2
     #   jinja2
     #   werkzeug
     #   wtforms
-numpy==2.2.3
+numpy==2.2.4
     # via pandas
 openpyxl==3.1.5
     # via -r requirements.in
