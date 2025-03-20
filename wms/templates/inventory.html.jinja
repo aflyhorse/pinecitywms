@@ -18,14 +18,29 @@
         <div class="card mb-4">
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center">
-                    <form method="get" class="d-flex">
-                        <select name="warehouse" class="form-select" onchange="this.form.submit()">
-                            {% for warehouse in warehouses %}
-                                <option value="{{ warehouse.id }}"
-                                        {% if warehouse == selected_warehouse %}selected{% endif %}>{{ warehouse.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </form>
+                    <div class="d-flex align-items-center">
+                        <form method="get" class="d-flex align-items-center">
+                            <select name="warehouse" class="form-select me-2" onchange="this.form.submit()">
+                                {% for warehouse in warehouses %}
+                                    <option value="{{ warehouse.id }}"
+                                            {% if warehouse == selected_warehouse %}selected{% endif %}>{{ warehouse.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-check ms-2" style="white-space: nowrap;">
+                                <input class="form-check-input" type="checkbox" name="only_available" id="only_available" 
+                                    {% if show_only_available %}checked{% endif %}
+                                    onchange="this.form.submit()">
+                                <label class="form-check-label" for="only_available">
+                                    仅显示剩余库存
+                                </label>
+                            </div>
+                            <!-- Preserve query parameters -->
+                            {% if itemSearchForm.name.data %}<input type="hidden" name="name" value="{{ itemSearchForm.name.data }}">{% endif %}
+                            {% if itemSearchForm.brand.data %}<input type="hidden" name="brand" value="{{ itemSearchForm.brand.data }}">{% endif %}
+                            {% if itemSearchForm.spec.data %}<input type="hidden" name="spec" value="{{ itemSearchForm.spec.data }}">{% endif %}
+                            {% if request.args.get('page') %}<input type="hidden" name="page" value="{{ request.args.get('page') }}">{% endif %}
+                        </form>
+                    </div>
                     <div>{{ render_form(itemSearchForm, form_type="inline") }}</div>
                 </div>
             </div>

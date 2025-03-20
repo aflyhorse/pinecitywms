@@ -35,27 +35,53 @@ def inventory():
     # Get selected warehouse from query params, default to first warehouse
     selected_warehouse_id = request.args.get("warehouse", type=int)
     selected_warehouse = None
-    
+
     if selected_warehouse_id:
         selected_warehouse = next(
-            (w for w in warehouses if w.id == selected_warehouse_id), warehouses[0] if warehouses else None
+            (w for w in warehouses if w.id == selected_warehouse_id),
+            warehouses[0] if warehouses else None,
         )
         # Save selected warehouse to session
         session["last_warehouse_id"] = selected_warehouse_id
     else:
         # Try to get warehouse from session if not in query params
         if "last_warehouse_id" in session and warehouses:
-            warehouse_exists = any(w.id == session["last_warehouse_id"] for w in warehouses)
+            warehouse_exists = any(
+                w.id == session["last_warehouse_id"] for w in warehouses
+            )
             if warehouse_exists:
                 selected_warehouse = next(
-                    (w for w in warehouses if w.id == session["last_warehouse_id"]), None
+                    (w for w in warehouses if w.id == session["last_warehouse_id"]),
+                    None,
                 )
-        
+
         # If still no warehouse, use first one
         if not selected_warehouse:
             selected_warehouse = warehouses[0] if warehouses else None
             if selected_warehouse:
                 session["last_warehouse_id"] = selected_warehouse.id
+
+    # Get the "only available" checkbox value - explicitly check for the parameter
+    only_available = request.args.get("only_available") is not None
+
+    # Check if the page was just loaded (GET) or if the form was submitted
+    if request.method == "GET" and "only_available" in request.args:
+        # Update session when checkbox explicitly included or excluded in request
+        session["show_only_available"] = only_available
+    elif (
+        request.method == "GET"
+        and request.args
+        and "only_available" not in request.args
+    ):
+        # If other parameters exist but checkbox is missing, it was unchecked
+        session["show_only_available"] = False
+    elif "show_only_available" not in session:
+        # Default to True if not set
+        session["show_only_available"] = True
+        only_available = True
+    else:
+        # Otherwise use the saved session value
+        only_available = session.get("show_only_available", True)
 
     page = request.args.get("page", 1, type=int)
     per_page = 20
@@ -75,6 +101,10 @@ def inventory():
             )
         )
 
+        # Apply filter for only showing items with quantity > 0
+        if only_available:
+            query = query.filter(WarehouseItemSKU.count > 0)
+
         if form.validate_on_submit():
             # Redirect to GET request with search parameters
             return redirect(
@@ -84,6 +114,7 @@ def inventory():
                     name=form.name.data,
                     brand=form.brand.data,
                     spec=form.spec.data,
+                    only_available="on" if only_available else None,
                     page=1,  # Reset to page 1 when searching
                 )
             )
@@ -114,6 +145,7 @@ def inventory():
         warehouses=warehouses,
         selected_warehouse=selected_warehouse,
         itemSearchForm=form,
+        show_only_available=only_available,
     )
 
 
@@ -227,7 +259,9 @@ def stockout():
             form.warehouse.data = selected_warehouse_id  # pragma: no cover
         elif "last_warehouse_id" in session and warehouses:
             # Check if the warehouse in session exists and is accessible
-            warehouse_exists = any(w.id == session["last_warehouse_id"] for w in warehouses)
+            warehouse_exists = any(
+                w.id == session["last_warehouse_id"] for w in warehouses
+            )
             if warehouse_exists:
                 selected_warehouse_id = session["last_warehouse_id"]
                 form.warehouse.data = selected_warehouse_id
@@ -364,10 +398,10 @@ def stockout():
         db.session.commit()
         receipt.update_warehouse_item_skus()
         db.session.commit()
-        
+
         # Save selected warehouse to session
         session["last_warehouse_id"] = selected_warehouse.id
-        
+
         flash("出库成功。", "success")
         return redirect(url_for("inventory", warehouse=selected_warehouse.id))
 
