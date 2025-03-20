@@ -1,4 +1,4 @@
-from flask import render_template, url_for, redirect, flash, request, send_file
+from flask import render_template, url_for, redirect, flash, request, send_file, session
 from flask_login import login_required, current_user
 from wms import app, db
 from wms.utils import admin_required
@@ -56,10 +56,7 @@ def inventory():
             .join(ItemSKU)
             .join(Item)
             .filter(
-                and_(
-                    WarehouseItemSKU.warehouse_id == selected_warehouse.id,
-                    WarehouseItemSKU.count > 0,
-                )
+                WarehouseItemSKU.warehouse_id == selected_warehouse.id,
             )
         )
 
@@ -113,7 +110,16 @@ def stockin():
     # Get all items with their display text
     skus = db.session.query(ItemSKU).join(Item).all()
     items = [(sku.id, f"{sku.item.name} - {sku.brand} - {sku.spec}") for sku in skus]
-    form.warehouse.choices = [(w.id, w.name) for w in Warehouse.query.all()]
+
+    warehouses = Warehouse.query.all()
+    form.warehouse.choices = [(w.id, w.name) for w in warehouses]
+
+    # If form is not submitted yet, check for warehouse in session
+    if request.method == "GET" and "last_warehouse_id" in session:
+        # Make sure the warehouse still exists
+        warehouse_exists = any(w.id == session["last_warehouse_id"] for w in warehouses)
+        if warehouse_exists:
+            form.warehouse.data = session["last_warehouse_id"]
 
     if form.validate_on_submit():
         receipt = Receipt(
@@ -156,6 +162,9 @@ def stockin():
         db.session.commit()
         receipt.update_warehouse_item_skus()
         db.session.commit()
+
+        # Save the selected warehouse to session
+        session["last_warehouse_id"] = form.warehouse.data
 
         flash("入库成功。", "success")
         return redirect(url_for("inventory", warehouse=form.warehouse.data))

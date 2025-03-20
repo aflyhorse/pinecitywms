@@ -29,8 +29,8 @@ class ItemSearchForm(FlaskForm):
         render_kw={
             "placeholder": "物品名称",
             "list": "item-names",
-            "autocomplete": "off"
-        }
+            "autocomplete": "off",
+        },
     )
     brand = StringField("品牌", render_kw={"placeholder": "品牌"})
     spec = StringField("规格", render_kw={"placeholder": "规格"})
@@ -49,8 +49,16 @@ class ItemCreateForm(FlaskForm):
         render_kw={"list": "existing-items", "placeholder": "输入或双击选择物品"},
     )
     new_item_name = StringField("新物品名称")
-    brand = StringField("品牌", validators=[DataRequired(), Length(1, 20)])
-    spec = StringField("规格", validators=[DataRequired(), Length(1, 20)])
+    brand = StringField(
+        "品牌",
+        validators=[DataRequired(), Length(1, 20)],
+        render_kw={"placeholder": "若没有品牌，填写'无'"},
+    )
+    spec = StringField(
+        "规格",
+        validators=[DataRequired(), Length(1, 20)],
+        render_kw={"placeholder": "若没有规格，填写'通用'"},
+    )
     submit = SubmitField("添加")
 
     def validate(self, extra_validators=None):
@@ -71,7 +79,7 @@ class StockInItemForm(FlaskForm):
         "物品", validators=[DataRequired()], render_kw={"list": "item-ids"}
     )
     quantity = IntegerField("数量", validators=[InputRequired()])
-    price = DecimalField("价格", validators=[InputRequired()])
+    price = DecimalField("单价", validators=[InputRequired()])
 
 
 class StockInForm(FlaskForm):
@@ -94,14 +102,24 @@ class StockOutItemForm(FlaskForm):
     )
     stock_count = IntegerField("库存数量", render_kw={"readonly": True})
     quantity = IntegerField("数量", validators=[InputRequired()])
-    price = DecimalField("价格", validators=[InputRequired()], render_kw={"readonly": True})
+    price = DecimalField(
+        "单价", validators=[InputRequired()], render_kw={"readonly": True}
+    )
 
 
 class StockOutForm(FlaskForm):
     warehouse = SelectField("仓库", coerce=int, validators=[InputRequired()])
     area = SelectField("区域", coerce=int, validators=[InputRequired()])
     department = SelectField("部门", coerce=int, validators=[InputRequired()])
-    location = StringField("具体地点", validators=[InputRequired(), Length(1, 30)])
-    note = StringField("备注", validators=[Length(0, 100)])
+    location = StringField(
+        "具体地点",
+        validators=[InputRequired(), Length(1, 30)],
+        render_kw={"placeholder": "必填：如1602，老干部大学走廊，5F茶水间等"},
+    )
+    note = StringField(
+        "备注",
+        validators=[Length(0, 100)],
+        render_kw={"placeholder": "选填：其他涉及具体位置/部件的说明"},
+    )
     items = FieldList(FormField(StockOutItemForm), min_entries=1)
     submit = SubmitField("出库")
