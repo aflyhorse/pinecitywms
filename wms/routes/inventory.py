@@ -35,12 +35,27 @@ def inventory():
     # Get selected warehouse from query params, default to first warehouse
     selected_warehouse_id = request.args.get("warehouse", type=int)
     selected_warehouse = None
+    
     if selected_warehouse_id:
         selected_warehouse = next(
-            (w for w in warehouses if w.id == selected_warehouse_id), warehouses[0]
+            (w for w in warehouses if w.id == selected_warehouse_id), warehouses[0] if warehouses else None
         )
+        # Save selected warehouse to session
+        session["last_warehouse_id"] = selected_warehouse_id
     else:
-        selected_warehouse = warehouses[0] if warehouses else None
+        # Try to get warehouse from session if not in query params
+        if "last_warehouse_id" in session and warehouses:
+            warehouse_exists = any(w.id == session["last_warehouse_id"] for w in warehouses)
+            if warehouse_exists:
+                selected_warehouse = next(
+                    (w for w in warehouses if w.id == session["last_warehouse_id"]), None
+                )
+        
+        # If still no warehouse, use first one
+        if not selected_warehouse:
+            selected_warehouse = warehouses[0] if warehouses else None
+            if selected_warehouse:
+                session["last_warehouse_id"] = selected_warehouse.id
 
     page = request.args.get("page", 1, type=int)
     per_page = 20
@@ -210,6 +225,12 @@ def stockout():
         selected_warehouse_id = request.args.get("warehouse", type=int)
         if selected_warehouse_id:
             form.warehouse.data = selected_warehouse_id  # pragma: no cover
+        elif "last_warehouse_id" in session and warehouses:
+            # Check if the warehouse in session exists and is accessible
+            warehouse_exists = any(w.id == session["last_warehouse_id"] for w in warehouses)
+            if warehouse_exists:
+                selected_warehouse_id = session["last_warehouse_id"]
+                form.warehouse.data = selected_warehouse_id
         elif warehouses:
             # Default to first warehouse if not specified
             selected_warehouse_id = warehouses[0].id
@@ -343,6 +364,10 @@ def stockout():
         db.session.commit()
         receipt.update_warehouse_item_skus()
         db.session.commit()
+        
+        # Save selected warehouse to session
+        session["last_warehouse_id"] = selected_warehouse.id
+        
         flash("出库成功。", "success")
         return redirect(url_for("inventory", warehouse=selected_warehouse.id))
 
