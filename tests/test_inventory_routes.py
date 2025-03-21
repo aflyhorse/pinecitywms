@@ -495,7 +495,9 @@ def test_warehouse_item_availability(
         follow_redirects=True,
     )
     assert response.status_code == 200
-    assert "库存不足".encode() in response.data or "无效的物品".encode() in response.data
+    assert (
+        "库存不足".encode() in response.data or "无效的物品".encode() in response.data
+    )
 
     # Try with the second warehouse which has the stock
     response = auth_client.post(
@@ -602,3 +604,77 @@ def test_stockout_invalid_area_and_department(auth_client, test_warehouse):
     )
     assert response.status_code == 200
     assert b"Not a valid choice." in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_inventory_export(auth_client, test_warehouse):
+    """Test the inventory export functionality"""
+    # Add some inventory to test with
+    with app.app_context():
+        sku = ItemSKU.query.first()
+        sku_id = sku.id
+        sku_item_name = sku.item.name
+        sku_brand = sku.brand
+        sku_spec = sku.spec
+
+    # Add stock via stockin
+    response = auth_client.post(
+        "/stockin",
+        data={
+            "refcode": "EXPORT-TEST-001",
+            "warehouse": test_warehouse,
+            "items-0-item_id": str(sku_id),
+            "items-0-quantity": "25",
+            "items-0-price": "90.00",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    # Test basic export
+    response = auth_client.get(f"/inventory/export?warehouse={test_warehouse}")
+    assert response.status_code == 200
+    assert (
+        response.mimetype
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert "inventory_" in response.headers["Content-Disposition"]
+    assert ".xlsx" in response.headers["Content-Disposition"]
+
+    # Test export with search parameters
+    response = auth_client.get(
+        f"/inventory/export?warehouse={test_warehouse}&name={sku_item_name}&brand={sku_brand}&spec={sku_spec}"
+    )
+    assert response.status_code == 200
+    assert (
+        response.mimetype
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    # Test export with non-matching search parameters
+    response = auth_client.get(
+        f"/inventory/export?warehouse={test_warehouse}&name=nonexistentitem"
+    )
+    assert response.status_code == 200
+    assert (
+        response.mimetype
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    # Test without specifying warehouse (should default to first warehouse)
+    response = auth_client.get("/inventory/export")
+    assert response.status_code == 200
+    assert (
+        response.mimetype
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+
+def test_inventory_export_invalid_warehouse(auth_client):
+    """Test export with invalid warehouse selection"""
+    # Test with non-existent warehouse ID
+    response = auth_client.get(
+        "/inventory/export?warehouse=99999", follow_redirects=True
+    )
+    assert response.status_code == 200
+    assert "未选择有效的仓库".encode() in response.data

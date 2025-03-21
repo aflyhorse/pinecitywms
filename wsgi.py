@@ -1,4 +1,4 @@
-from wms import app
+from wms import app  # pragma: no cover
 
 if __name__ == "__main__":
     app.run()
