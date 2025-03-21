@@ -72,13 +72,13 @@ def item_create():
         item = db.session.execute(
             select(Item).filter_by(name=form.item_name.data)
         ).scalar_one_or_none()
-        
+
         if not item:
             # Create new item if it doesn't exist
             item = Item(name=form.item_name.data)
             db.session.add(item)
             db.session.flush()
-        
+
         # Create new SKU for the item (whether existing or new)
         sku = ItemSKU(item_id=item.id, brand=form.brand.data, spec=form.spec.data)
         db.session.add(sku)

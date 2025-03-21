@@ -58,24 +58,37 @@ def test_item_search_form():
 
 def test_item_create_form():
     with app.test_request_context():
-        # Test new item creation
+        # Test new item creation with detailed debugging
+        data = {
+            "item_name": "New Item",
+            "brand": "Test Brand",
+            "spec": "Test Spec",
+        }
+        print(f"Input data: {data}")
+
         form = ItemCreateForm(
             meta={"csrf": False},
-            data={
-                "item_choice": "new",
-                "new_item_name": "New Item",
-                "brand": "Test Brand",
-                "spec": "Test Spec",
-            },
+            data=data,
         )
+
+        # Print form field data
+        print("Form data received:")
+        for field_name, field in form._fields.items():
+            print(f"  {field_name}: {field.data}")
+
+        # Debug: Print validation errors if any
+        if not form.validate():
+            print("Form validation errors:")
+            for field_name, errors in form.errors.items():
+                print(f"  {field_name}: {errors}")
+
         assert form.validate() is True
 
         # Test existing item selection
         form = ItemCreateForm(
             meta={"csrf": False},
             data={
-                "item_choice": "existing",
-                "existing_item": "Test Item",
+                "item_name": "Test Item",
                 "brand": "Test Brand",
                 "spec": "Test Spec",
             },
@@ -85,7 +98,7 @@ def test_item_create_form():
         # Test invalid form - missing new item name
         form = ItemCreateForm(
             meta={"csrf": False},
-            data={"item_choice": "new", "brand": "Test Brand", "spec": "Test Spec"},
+            data={"brand": "Test Brand", "spec": "Test Spec"},
         )
         assert form.validate() is False
 
@@ -93,8 +106,7 @@ def test_item_create_form():
         form = ItemCreateForm(
             meta={"csrf": False},
             data={
-                "item_choice": "new",
-                "new_item_name": "New Item",
+                "item_name": "New Item",
                 "spec": "Test Spec",
             },
         )
@@ -105,28 +117,9 @@ def test_item_create_form():
         form = ItemCreateForm(
             meta={"csrf": False},
             data={
-                "item_choice": "new",
-                "new_item_name": "New Item",
+                "item_name": "New Item",
                 "brand": "Test Brand",
             },
         )
         assert form.validate() is False
         assert "This field is required." in form.spec.errors
-
-        # Test invalid form - existing item without selection
-        form = ItemCreateForm(
-            meta={"csrf": False},
-            data={
-                "item_choice": "existing",
-                "brand": "Test Brand",
-                "spec": "Test Spec",
-            },
-        )
-        assert form.validate() is False
-
-        # Test invalid choice
-        form = ItemCreateForm(
-            meta={"csrf": False},
-            data={"item_choice": "invalid", "brand": "Test Brand", "spec": "Test Spec"},
-        )
-        assert form.validate() is False

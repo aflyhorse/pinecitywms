@@ -32,8 +32,7 @@ def test_item_creation(auth_client):
     response = auth_client.post(
         "/item/create",
         data={
-            "item_choice": "new",
-            "new_item_name": "New Test Item",
+            "item_name": "New Test Item",
             "brand": "New Brand",
             "spec": "New Spec",
         },
@@ -50,8 +49,7 @@ def test_item_creation(auth_client):
     response = auth_client.post(
         "/item/create",
         data={
-            "item_choice": "existing",
-            "existing_item": existing_item.name,
+            "item_name": existing_item.name,
             "brand": "Another Brand",
             "spec": "Another Spec",
         },
@@ -59,20 +57,6 @@ def test_item_creation(auth_client):
     )
     assert response.status_code == 200
     assert "物品添加成功".encode() in response.data
-
-    # Test invalid existing item
-    response = auth_client.post(
-        "/item/create",
-        data={
-            "item_choice": "existing",
-            "existing_item": "Non-existent Item",
-            "brand": "Brand",
-            "spec": "Spec",
-        },
-        follow_redirects=True,
-    )
-    assert response.status_code == 200
-    assert "未找到指定物品".encode() in response.data
 
 
 def test_non_admin_access(client, regular_user):

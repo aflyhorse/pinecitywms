@@ -12,12 +12,12 @@ from wtforms import (
     HiddenField,
     FileField,
 )
-from wtforms.validators import InputRequired, Length
+from wtforms.validators import DataRequired, InputRequired, Length
 
 
 class LoginForm(FlaskForm):
-    username = StringField("用户名", validators=[InputRequired(), Length(1, 20)])
-    password = PasswordField("密码", validators=[InputRequired(), Length(1, 40)])
+    username = StringField("用户名", validators=[DataRequired(), Length(1, 20)])
+    password = PasswordField("密码", validators=[DataRequired(), Length(1, 40)])
     remember = BooleanField("保持登录", default="checked")
     submit = SubmitField("登录")
 
@@ -39,17 +39,17 @@ class ItemSearchForm(FlaskForm):
 class ItemCreateForm(FlaskForm):
     item_name = StringField(
         "物品名称",
-        validators=[InputRequired(), Length(1, 20)],
+        validators=[DataRequired(), Length(1, 20)],
         render_kw={"list": "existing-items", "placeholder": "输入或双击选择物品"},
     )
     brand = StringField(
         "品牌",
-        validators=[InputRequired(), Length(1, 20)],
+        validators=[DataRequired(), Length(1, 20)],
         render_kw={"placeholder": "若没有品牌，填写'无'"},
     )
     spec = StringField(
         "规格",
-        validators=[InputRequired(), Length(1, 20)],
+        validators=[DataRequired(), Length(1, 20)],
         render_kw={"placeholder": "若没有规格，填写'通用'"},
     )
     submit = SubmitField("添加")
