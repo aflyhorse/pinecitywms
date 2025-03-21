@@ -34,7 +34,7 @@ def records():
     # Get filter parameters from request
     record_type = request.args.get(
         "type", "stockout"
-    )  # stockin or stockout (default to stockout)
+    )  # stockin, stockout or takestock (default to stockout)
     warehouse_id = request.args.get("warehouse")
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
@@ -104,6 +104,8 @@ def records():
     # Apply filters
     if record_type == "stockin":
         query = query.filter(Receipt.type == ReceiptType.STOCKIN)
+    elif record_type == "takestock":
+        query = query.filter(Receipt.type == ReceiptType.TAKESTOCK)
     else:
         query = query.filter(Receipt.type == ReceiptType.STOCKOUT)
         if location_info:
@@ -503,6 +505,8 @@ def records_export():
 
     if record_type == "stockin":
         query = query.filter(Receipt.type == ReceiptType.STOCKIN)
+    elif record_type == "takestock":
+        query = query.filter(Receipt.type == ReceiptType.TAKESTOCK)
     else:
         query = query.filter(Receipt.type == ReceiptType.STOCKOUT)
         if location_info:
@@ -566,6 +570,18 @@ def records_export():
                 "price": "价格",
                 "warehouse_name": "仓库",
                 "refcode": "单号",
+            }
+        elif record_type == "takestock":
+            columns = {
+                "date": "日期",
+                "item_name": "物品",
+                "brand": "品牌",
+                "spec": "规格",
+                "count": "数量",
+                "price": "价格",
+                "warehouse_name": "仓库",
+                "operator_name": "操作员",
+                "note": "备注",
             }
         else:
             columns = {

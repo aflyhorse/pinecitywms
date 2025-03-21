@@ -14,6 +14,7 @@
                         <select name="type" class="form-select" onchange="this.form.submit()">
                             <option value="stockin" {% if record_type == 'stockin' %}selected{% endif %}>入库</option>
                             <option value="stockout" {% if record_type == 'stockout' %}selected{% endif %}>出库</option>
+                            <option value="takestock" {% if record_type == 'takestock' %}selected{% endif %}>盘点</option>
                         </select>
                     </div>
                     <div class="col-md-2">
@@ -83,12 +84,14 @@
                         <th>价格</th>
                         <th>仓库</th>
                         {% if record_type == 'stockin' %}
-                        <th>单号</th>
+                            <th>单号</th>
+                        {% elif record_type == 'takestock' %}
+                            <th>操作员</th>
                         {% else %}
-                        <th>操作员</th>
-                        <th>区域</th>
-                        <th>部门</th>
-                        <th>具体地点</th>
+                            <th>操作员</th>
+                            <th>区域</th>
+                            <th>部门</th>
+                            <th>具体地点</th>
                         {% endif %}
                         <th> </th>
                     </tr>
@@ -99,16 +102,18 @@
                             <td>{{ transaction.receipt.date.strftime('%Y-%m-%d %H:%M') }}</td>
                             <td>{{ transaction.itemSKU.item.name }}</td>
                             <td>{{ transaction.itemSKU.brand }} - {{ transaction.itemSKU.spec }}</td>
-                            <td>{{ transaction.count if record_type == 'stockin' else -transaction.count }}</td>
+                            <td>{{ transaction.count }}</td>
                             <td>¥{{ "%.2f"|format(transaction.price) }}</td>
                             <td>{{ transaction.receipt.warehouse.name }}</td>
                             {% if record_type == 'stockin' %}
-                            <td>{{ transaction.receipt.refcode }}</td>
+                                <td>{{ transaction.receipt.refcode }}</td>
+                            {% elif record_type == 'takestock' %}
+                                <td>{{ transaction.receipt.operator.nickname }}</td>
                             {% else %}
-                            <td>{{ transaction.receipt.operator.nickname }}</td>
-                            <td>{{ transaction.receipt.area.name if transaction.receipt.area else '' }}</td>
-                            <td>{{ transaction.receipt.department.name if transaction.receipt.department else '' }}</td>
-                            <td>{{ transaction.receipt.location }}</td>
+                                <td>{{ transaction.receipt.operator.nickname }}</td>
+                                <td>{{ transaction.receipt.area.name if transaction.receipt.area else '' }}</td>
+                                <td>{{ transaction.receipt.department.name if transaction.receipt.department else '' }}</td>
+                                <td>{{ transaction.receipt.location }}</td>
                             {% endif %}
                             <td>
                                 {% if transaction.receipt.note %}
