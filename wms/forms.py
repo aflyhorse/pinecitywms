@@ -12,7 +12,13 @@ from wtforms import (
     HiddenField,
     FileField,
 )
-from wtforms.validators import DataRequired, InputRequired, Length
+from wtforms.validators import (
+    DataRequired,
+    InputRequired,
+    Length,
+    EqualTo,
+    ValidationError,
+)
 
 
 class LoginForm(FlaskForm):
@@ -112,3 +118,23 @@ class BatchTakeStockForm(FlaskForm):
     file = FileField("文件", validators=[InputRequired()])
     note = StringField("说明", validators=[InputRequired()])
     submit = SubmitField("上传盘库文件")
+
+
+class PasswordChangeForm(FlaskForm):
+    username = SelectField("用户名", validators=[DataRequired()])
+    old_password = PasswordField("原密码")  # Optional for admin
+    new_password = PasswordField("新密码", validators=[DataRequired(), Length(1, 40)])
+    confirm_password = PasswordField(
+        "确认新密码",
+        validators=[
+            DataRequired(),
+            EqualTo("new_password", message="两次输入的密码必须相同"),
+        ],
+    )
+    submit = SubmitField("修改密码")
+
+    def validate_username(self, field):
+        from flask_login import current_user
+
+        if not current_user.is_admin and field.data != current_user.username:
+            raise ValidationError("您只能修改自己的密码。")
