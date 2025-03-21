@@ -34,11 +34,11 @@
                                     仅显示剩余库存
                                 </label>
                             </div>
-                            <!-- Preserve query parameters -->
+                            <!-- Preserve query parameters except page -->
+                            <input type="hidden" name="page" value="1">
                             {% if itemSearchForm.name.data %}<input type="hidden" name="name" value="{{ itemSearchForm.name.data }}">{% endif %}
                             {% if itemSearchForm.brand.data %}<input type="hidden" name="brand" value="{{ itemSearchForm.brand.data }}">{% endif %}
                             {% if itemSearchForm.spec.data %}<input type="hidden" name="spec" value="{{ itemSearchForm.spec.data }}">{% endif %}
-                            {% if request.args.get('page') %}<input type="hidden" name="page" value="{{ request.args.get('page') }}">{% endif %}
                         </form>
                     </div>
                     <div>{{ render_form(itemSearchForm, form_type="inline") }}</div>
