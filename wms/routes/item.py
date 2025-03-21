@@ -68,24 +68,19 @@ def item_create():
     items = db.session.execute(select(Item)).scalars()
 
     if form.validate_on_submit():
-        if form.item_choice.data == "existing":
-            # Find item by name
-            item = db.session.execute(
-                select(Item).filter_by(name=form.existing_item.data)
-            ).scalar_one_or_none()
-            if not item:
-                flash("未找到指定物品。", "danger")
-                return render_template("item_create.html.jinja", form=form, items=items)
-            item_id = item.id
-        else:
-            # Create new item
-            item = Item(name=form.new_item_name.data)
+        # Check if item with this name already exists
+        item = db.session.execute(
+            select(Item).filter_by(name=form.item_name.data)
+        ).scalar_one_or_none()
+        
+        if not item:
+            # Create new item if it doesn't exist
+            item = Item(name=form.item_name.data)
             db.session.add(item)
             db.session.flush()
-            item_id = item.id
-
-        # Create new SKU
-        sku = ItemSKU(item_id=item_id, brand=form.brand.data, spec=form.spec.data)
+        
+        # Create new SKU for the item (whether existing or new)
+        sku = ItemSKU(item_id=item.id, brand=form.brand.data, spec=form.spec.data)
         db.session.add(sku)
         db.session.commit()
 
