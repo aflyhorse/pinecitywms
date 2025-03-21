@@ -123,3 +123,10 @@ class StockOutForm(FlaskForm):
     )
     items = FieldList(FormField(StockOutItemForm), min_entries=1)
     submit = SubmitField("出库")
+
+
+class BatchTakeStockForm(FlaskForm):
+    warehouse = SelectField("仓库", validators=[DataRequired()], coerce=int)
+    file = FileField("文件", validators=[DataRequired()])
+    note = StringField("说明", validators=[DataRequired()])
+    submit = SubmitField("上传盘库文件")

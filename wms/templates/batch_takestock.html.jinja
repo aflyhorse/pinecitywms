@@ -1,0 +1,75 @@
+{% extends 'base.html.jinja' %}
+
+{% block content %}
+<div class="container pt-4">
+    <h2>批量盘库</h2>
+    
+    <form method="POST" id="warehouse-form">
+        {{ form.csrf_token }}
+        <div class="mb-3">
+            {{ form.warehouse.label(class="form-label") }}
+            {{ form.warehouse(class="form-select") }}
+        </div>
+    </form>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            下载盘库模板
+        </div>
+        <div class="card-body">
+            <form method="POST" id="download-form">
+                {{ form.csrf_token }}
+                <input type="hidden" name="warehouse" id="warehouse-download">
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="only_with_stock" name="only_with_stock" value="y">
+                    <label class="form-check-label" for="only_with_stock">仅下载剩余库存物品信息</label>
+                </div>
+                <button type="submit" name="download_template" value="1" class="btn btn-primary">下载盘库模板</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            上传盘库文件
+        </div>
+        <div class="card-body">
+            <form method="POST" enctype="multipart/form-data" id="upload-form">
+                {{ form.csrf_token }}
+                <input type="hidden" name="warehouse" id="warehouse-upload">
+                
+                <div class="mb-3">
+                    {{ form.note.label(class="form-label") }}
+                    {{ form.note(class="form-control") }}
+                </div>
+                
+                <div class="mb-3">
+                    {{ form.file.label(class="form-label") }}
+                    {{ form.file(class="form-control") }}
+                </div>
+                
+                {{ form.submit(class="btn btn-primary") }}
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Sync the warehouse selection across all forms
+document.addEventListener('DOMContentLoaded', function() {
+    const warehouseSelect = document.querySelector('#warehouse');
+    const warehouseDownload = document.querySelector('#warehouse-download');
+    const warehouseUpload = document.querySelector('#warehouse-upload');
+    
+    // Initial sync
+    warehouseDownload.value = warehouseSelect.value;
+    warehouseUpload.value = warehouseSelect.value;
+    
+    // Keep synced on change
+    warehouseSelect.addEventListener('change', function() {
+        warehouseDownload.value = this.value;
+        warehouseUpload.value = this.value;
+    });
+});
+</script>
+{% endblock %}

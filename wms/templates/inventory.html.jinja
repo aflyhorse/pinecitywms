@@ -7,7 +7,8 @@
         <div class="d-flex justify-content-between mb-3">
             <div>
                 {% if current_user.is_admin %}<a href="{{ url_for('stockin') }}" class="btn btn-primary me-2">入库</a>{% endif %}
-                <a href="{{ url_for('stockout') }}" class="btn btn-danger">出库</a>
+                <a href="{{ url_for('stockout') }}" class="btn btn-danger me-2">出库</a>
+                <a href="{{ url_for('batch_takestock') }}" class="btn btn-warning">盘库</a>
             </div>
             <div>
                 <a href="{{ url_for('inventory_export', warehouse=selected_warehouse.id if selected_warehouse else '', name=itemSearchForm.name.data, brand=itemSearchForm.brand.data, spec=itemSearchForm.spec.data) }}" class="btn btn-success">
