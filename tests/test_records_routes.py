@@ -85,6 +85,20 @@ def test_records_access_control(client, regular_user, regular_warehouse):
         )
         db.session.add(public_transaction)
 
+        # Create takestock receipt in public warehouse
+        takestock_receipt = Receipt(
+            operator=other_user,
+            warehouse_id=public_warehouse.id,
+            type=ReceiptType.TAKESTOCK,
+            note="Public takestock note",
+        )
+        db.session.add(takestock_receipt)
+        db.session.flush()
+        takestock_transaction = Transaction(
+            itemSKU=sku, count=7, price=30.00, receipt=takestock_receipt
+        )
+        db.session.add(takestock_transaction)
+
         db.session.commit()
 
         # Store warehouse IDs for later assertions
@@ -112,6 +126,17 @@ def test_records_access_control(client, regular_user, regular_warehouse):
     assert response.status_code == 200
     assert b"PUBLIC-RECORD-TEST" in response.data
 
+    # Check regular user can see takestock records from public warehouse
+    response = client.get(
+        f"/records?type=takestock&warehouse={public_warehouse_id}",
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert (
+        b"Public takestock note" in response.data
+        or b'data-bs-toggle="tooltip"' in response.data
+    )
+
     # Verify the "All Warehouses" option is not available to regular users
     response = client.get("/records", follow_redirects=True)
     assert (
@@ -137,7 +162,22 @@ def test_records_filtering(auth_client, test_warehouse, test_customer):
         # Add transaction to stockin
         transaction = Transaction(itemSKU=sku, count=10, price=100.00, receipt=receipt)
         db.session.add(transaction)
-        db.session.commit()
+
+        # Then do a takestock
+        takestock_receipt = Receipt(
+            operator_id=1,  # admin user
+            warehouse_id=test_warehouse,
+            type=ReceiptType.TAKESTOCK,
+            note="Takestock verification note",
+        )
+        db.session.add(takestock_receipt)
+        db.session.flush()
+
+        # Add transaction to takestock
+        takestock_trans = Transaction(
+            itemSKU=sku, count=8, price=100.00, receipt=takestock_receipt
+        )
+        db.session.add(takestock_trans)
 
         # Then do a stockout
         receipt = Receipt(
@@ -185,6 +225,14 @@ def test_records_filtering(auth_client, test_warehouse, test_customer):
     response = auth_client.get("/records?type=stockout&customer=Test")
     assert response.status_code == 200
     assert b"Test Area" in response.data
+
+    # Test takestock records filtering
+    response = auth_client.get("/records?type=takestock")
+    assert response.status_code == 200
+    assert (
+        b"Takestock verification note" in response.data
+        or b'data-bs-toggle="tooltip"' in response.data
+    )
 
 
 @pytest.mark.usefixtures("test_item")
@@ -640,6 +688,20 @@ def test_export_records_with_filters(auth_client, test_warehouse, test_customer)
         )
         db.session.add(special_out_trans)
 
+        # Create a takestock receipt
+        takestock_receipt = Receipt(
+            operator_id=1,
+            warehouse_id=test_warehouse,
+            type=ReceiptType.TAKESTOCK,
+            note="Special takestock export test",
+        )
+        db.session.add(takestock_receipt)
+        db.session.flush()
+        takestock_trans = Transaction(
+            itemSKU=sku, count=12, price=85.00, receipt=takestock_receipt
+        )
+        db.session.add(takestock_trans)
+
         db.session.commit()
 
         item_name = sku.item.name
@@ -669,6 +731,16 @@ def test_export_records_with_filters(auth_client, test_warehouse, test_customer)
 
     # Test export with sku description filter - this should hit line 389
     response = auth_client.get(f"/records/export?sku_desc={sku.brand}")
+    assert response.status_code == 200
+
+    # Test export with takestock type
+    response = auth_client.get("/records/export?type=takestock")
+    assert response.status_code == 200
+
+    # Test export with combined filters for takestock
+    response = auth_client.get(
+        f"/records/export?type=takestock&start_date={start_date}&end_date={end_date}&item_name={item_name}"
+    )
     assert response.status_code == 200
 
 
@@ -932,3 +1004,97 @@ def test_records_location_info_filter(auth_client, test_warehouse, test_customer
     )
     assert response.status_code == 200
     assert b"Shelf A-123" not in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_takestock_records_filtering(auth_client, test_warehouse):
+    with app.app_context():
+        sku = ItemSKU.query.first()
+        sku_item_name = sku.item.name
+
+        # Create a takestock receipt
+        receipt = Receipt(
+            operator_id=1,  # admin user
+            warehouse_id=test_warehouse,
+            type=ReceiptType.TAKESTOCK,
+            note="Test takestock note",
+        )
+        db.session.add(receipt)
+        db.session.flush()
+
+        # Add transaction to takestock
+        transaction = Transaction(itemSKU=sku, count=15, price=100.00, receipt=receipt)
+        db.session.add(transaction)
+        db.session.commit()
+
+    # Test takestock records filtering
+    response = auth_client.get("/records?type=takestock")
+    assert response.status_code == 200
+    assert sku_item_name.encode() in response.data
+
+    # Test that the operator column is shown for takestock records
+    assert "操作员".encode() in response.data
+
+    # Test that refcode column is not shown for takestock records
+    assert "单号".encode() not in response.data
+
+    # Test note icon is shown for takestock records with notes
+    assert b'data-bs-toggle="tooltip"' in response.data
+    assert b'title="Test takestock note"' in response.data
+
+    # Test filtering by warehouse
+    response = auth_client.get(f"/records?type=takestock&warehouse={test_warehouse}")
+    assert response.status_code == 200
+    assert sku_item_name.encode() in response.data
+
+    # Test date range filtering
+    today = datetime.now().date()
+    start_date = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    end_date = today.strftime("%Y-%m-%d")
+    response = auth_client.get(
+        f"/records?type=takestock&start_date={start_date}&end_date={end_date}"
+    )
+    assert response.status_code == 200
+    assert sku_item_name.encode() in response.data
+
+    # Test item name filtering for takestock
+    response = auth_client.get(f"/records?type=takestock&item_name={sku_item_name}")
+    assert response.status_code == 200
+    assert sku_item_name.encode() in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_export_takestock_records(auth_client, test_warehouse):
+    with app.app_context():
+        sku = ItemSKU.query.first()
+
+        # Create a takestock receipt
+        receipt = Receipt(
+            operator_id=1,  # admin user
+            warehouse_id=test_warehouse,
+            type=ReceiptType.TAKESTOCK,
+            note="Takestock export test note",
+        )
+        db.session.add(receipt)
+        db.session.flush()
+
+        # Add transaction to takestock
+        transaction = Transaction(itemSKU=sku, count=25, price=120.00, receipt=receipt)
+        db.session.add(transaction)
+        db.session.commit()
+
+    # Test export takestock records
+    response = auth_client.get("/records/export?type=takestock")
+    assert response.status_code == 200
+    # Check that we received an Excel file
+    assert (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        in response.content_type
+    )
+    assert "attachment" in response.headers.get("Content-Disposition", "")
+
+    # Test with filtering
+    response = auth_client.get(
+        f"/records/export?type=takestock&warehouse={test_warehouse}"
+    )
+    assert response.status_code == 200
