@@ -115,12 +115,14 @@
                 }
             });
 
-            // Handle removing item
+            // Handle removing item - FIX IMPLEMENTED HERE
             itemsDiv.addEventListener('click', function(event) {
-                if (event.target.classList.contains('remove-item')) {
+                // Find the closest button with remove-item class
+                const removeButton = event.target.closest('.remove-item');
+                if (removeButton) {
                     const itemForms = document.querySelectorAll('.item-form');
                     if (itemForms.length > 1) {
-                        const itemForm = event.target.closest('.item-form');
+                        const itemForm = removeButton.closest('.item-form');
                         const itemFormIndex = Array.from(itemForms).indexOf(itemForm);
                         
                         // Remove the form element and its related fields
