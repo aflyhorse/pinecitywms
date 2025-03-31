@@ -104,7 +104,8 @@ def inventory():
         # Apply filter for only showing items with quantity > 0
         if only_available:
             query = query.filter(WarehouseItemSKU.count > 0)
-
+        else:
+            query = query.filter((~ItemSKU.disabled) | (WarehouseItemSKU.count > 0))
         if form.validate_on_submit():
             # Redirect to GET request with search parameters
             return redirect(
@@ -154,8 +155,10 @@ def inventory():
 @admin_required
 def stockin():
     form = StockInForm()
-    # Get all items with their display text
-    skus = db.session.query(ItemSKU).join(Item).all()
+    # Get all items with their display text, excluding disabled items
+    skus = (
+        db.session.query(ItemSKU).join(Item).filter(ItemSKU.disabled.is_(False)).all()
+    )
     items = [(sku.id, f"{sku.item.name} - {sku.brand} - {sku.spec}") for sku in skus]
 
     warehouses = Warehouse.query.all()
@@ -169,52 +172,71 @@ def stockin():
             form.warehouse.data = session["last_warehouse_id"]
 
     if form.validate_on_submit():
+        # Check if the refcode already exists
+        existing_receipt = Receipt.query.filter_by(refcode=form.refcode.data).first()
+        if existing_receipt:
+            flash(f"入库单号 '{form.refcode.data}' 已存在，请使用不同的入库单号。", "danger")
+            return render_template("inventory_stockin.html.jinja", form=form, items=items)
+
         receipt = Receipt(
             operator=current_user,
             refcode=form.refcode.data,
             warehouse_id=form.warehouse.data,
             type=ReceiptType.STOCKIN,
         )
-        db.session.add(receipt)
-        db.session.flush()
+        
+        try:
+            db.session.add(receipt)
+            db.session.flush()
 
-        for item_form in form.items:
-            try:
-                # Use the hidden item_sku_id field instead of item_id text field
-                item_sku_id = item_form.item_sku_id.data
-                if not item_sku_id:
-                    # Fallback to the old method if hidden field is not populated
-                    item_sku_id = item_form.item_id.data
+            for item_form in form.items:
+                try:
+                    # Use the hidden item_sku_id field instead of item_id text field
+                    item_sku_id = item_form.item_sku_id.data
+                    if not item_sku_id:
+                        # Fallback to the old method if hidden field is not populated
+                        item_sku_id = item_form.item_id.data
 
-                item_id = int(item_sku_id)
+                    item_id = int(item_sku_id)
 
-                # Validate the item exists
-                item = db.session.get(ItemSKU, item_id)
-                if not item:
-                    raise ValueError("Invalid item ID")
+                    # Validate the item exists and is not disabled
+                    item = db.session.get(ItemSKU, item_id)
+                    if not item:
+                        raise ValueError("Invalid item ID")
+                    if item.disabled:
+                        raise ValueError("This item is disabled")
 
-                transaction = Transaction(
-                    itemSKU_id=item_id,
-                    count=item_form.quantity.data,
-                    price=item_form.price.data,
-                    receipt_id=receipt.id,
-                )
-                db.session.add(transaction)
-            except ValueError:
-                flash("无效的物品", "danger")
-                return render_template(
-                    "inventory_stockin.html.jinja", form=form, items=items
-                )
+                    transaction = Transaction(
+                        itemSKU_id=item_id,
+                        count=item_form.quantity.data,
+                        price=item_form.price.data,
+                        receipt_id=receipt.id,
+                    )
+                    db.session.add(transaction)
+                except ValueError as e:
+                    flash(f"无效的物品: {str(e)}", "danger")
+                    db.session.rollback()
+                    return render_template(
+                        "inventory_stockin.html.jinja", form=form, items=items
+                    )
 
-        db.session.commit()
-        receipt.update_warehouse_item_skus()
-        db.session.commit()
+            db.session.commit()
+            receipt.update_warehouse_item_skus()
+            db.session.commit()
 
-        # Save the selected warehouse to session
-        session["last_warehouse_id"] = form.warehouse.data
+            # Save the selected warehouse to session
+            session["last_warehouse_id"] = form.warehouse.data
 
-        flash("入库成功。", "success")
-        return redirect(url_for("inventory", warehouse=form.warehouse.data))
+            flash("入库成功。", "success")
+            return redirect(url_for("inventory", warehouse=form.warehouse.data))
+        except Exception as e:
+            db.session.rollback()
+            # Check if it's a unique constraint error
+            if "UNIQUE constraint failed: receipt.refcode" in str(e):
+                flash(f"入库单号 '{form.refcode.data}' 已存在，请使用不同的入库单号。", "danger")
+            else:
+                flash(f"处理过程中出现错误: {str(e)}", "danger")
+            return render_template("inventory_stockin.html.jinja", form=form, items=items)
     else:
         if request.method == "POST":
             for field, errors in form.errors.items():  # pragma: no cover

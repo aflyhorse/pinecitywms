@@ -64,7 +64,12 @@ class ItemCreateForm(FlaskForm):
 class StockInItemForm(FlaskForm):
     item_sku_id = HiddenField("物品ID")  # Hidden field for the actual item SKU ID
     item_id = StringField(
-        "物品", validators=[InputRequired()], render_kw={"list": "item-ids"}
+        "物品",
+        validators=[InputRequired()],
+        render_kw={
+            "list": "item-ids",
+            "autocomplete": "off",  # Disable browser's native autocomplete
+        },
     )
     quantity = IntegerField("数量", validators=[InputRequired()])
     price = DecimalField("单价", validators=[InputRequired()])

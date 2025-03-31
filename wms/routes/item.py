@@ -1,4 +1,4 @@
-from flask import render_template, url_for, redirect, flash, request
+from flask import render_template, url_for, redirect, flash, request, jsonify
 from flask_login import login_required
 from sqlalchemy import select, distinct, desc
 from wms import app, db
@@ -88,3 +88,26 @@ def item_create():
         return redirect(url_for("item"))
 
     return render_template("item_create.html.jinja", form=form, items=items)
+
+
+@app.route("/item/<int:itemSKU_id>/toggle_disabled", methods=["POST"])
+@login_required
+@admin_required
+def toggle_disabled(itemSKU_id):
+    # Find the item SKU
+    item_sku = db.session.get(ItemSKU, itemSKU_id)
+
+    if not item_sku:
+        return jsonify({"success": False, "message": "物品不存在"}), 404
+
+    # Toggle the disabled status
+    item_sku.disabled = not item_sku.disabled
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "disabled": item_sku.disabled,
+            "message": "物品已{}。".format("禁用" if item_sku.disabled else "启用"),
+        }
+    )

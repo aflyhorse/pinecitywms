@@ -11,7 +11,7 @@
         {{ render_field(form.warehouse) }}
         <datalist id="item-ids">
             {% for id, name in items %}
-            <option value="{{ name }}">{{ name }}</option>
+            <option value="{{ name }}" data-id="{{ id }}">{{ name }}</option>
             {% endfor %}
         </datalist>
         <div id="items">
@@ -94,6 +94,9 @@
                 });
                 
                 itemsDiv.appendChild(template);
+                
+                // Reset datalist to its original state with all items
+                resetDatalist();
             }
         });
 
@@ -154,6 +157,28 @@
             {% endfor %}
         ];
 
+        // Function to reset datalist to its original state with all items
+        function resetDatalist() {
+            const datalist = document.getElementById('item-ids');
+            datalist.innerHTML = '';
+            
+            items.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.name;
+                option.setAttribute('data-id', item.id);
+                datalist.appendChild(option);
+            });
+        }
+        
+        // Add focus event listener to clear datalist when focusing on a new input
+        itemsDiv.addEventListener('focus', function(event) {
+            const input = event.target;
+            if (input.name && input.name.endsWith('item_id')) {
+                // Reset datalist when focusing on a new item input field
+                resetDatalist();
+            }
+        }, true);  // Use capture phase to ensure this runs before other handlers
+
         // Handle item search and selection
         itemsDiv.addEventListener('input', function(event) {
             const input = event.target;
@@ -182,6 +207,7 @@
                 matches.forEach(item => {
                     const option = document.createElement('option');
                     option.value = item.name;
+                    option.setAttribute('data-id', item.id);
                     datalist.appendChild(option);
                 });
             }
