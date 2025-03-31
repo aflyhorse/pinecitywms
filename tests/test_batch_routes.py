@@ -172,8 +172,8 @@ def test_batch_takestock_post_success(client, auth_client, test_user, test_wareh
             "物品": ["盘库测试物品"],
             "品牌": ["盘库测试品牌"],
             "规格": ["盘库测试规格"],
-            "现有库存": [10],  # Current count
-            "盈亏数量": [-2],  # Adjustment: -2
+            "系统库存": [10],  # System inventory count
+            "实际库存": [8],  # Actual inventory count (results in -2 adjustment)
         }
     )
 
@@ -255,7 +255,7 @@ def test_batch_takestock_template_download(
 
     # Verify the template content
     excel_data = pd.read_excel(io.BytesIO(response.data))
-    required_columns = ["物品", "品牌", "规格", "现有库存", "盈亏数量"]
+    required_columns = ["物品", "品牌", "规格", "系统库存", "实际库存"]
     assert all(col in excel_data.columns for col in required_columns)
     assert "模板测试物品" in excel_data["物品"].values
 
@@ -274,7 +274,7 @@ def test_batch_takestock_missing_columns(
         {
             "物品": ["测试物品"],
             "品牌": ["测试品牌"],
-            # Missing '规格', '现有库存', '盈亏数量'
+            # Missing '规格', '系统库存', '实际库存'
         }
     )
 
@@ -306,8 +306,8 @@ def test_batch_takestock_new_items(client, auth_client, test_user, test_warehous
             "物品": ["全新物品"],
             "品牌": ["全新品牌"],
             "规格": ["全新规格"],
-            "现有库存": [0],  # Current count (doesn't exist yet)
-            "盈亏数量": [5],  # Adding 5 new items
+            "系统库存": [0],  # System inventory count (doesn't exist yet)
+            "实际库存": [5],  # Actual inventory (results in adding 5 new items)
         }
     )
 

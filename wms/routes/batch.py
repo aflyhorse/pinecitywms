@@ -234,7 +234,7 @@ def batch_takestock():
                 df = pd.read_excel(uploaded_file)
 
                 # Verify columns
-                required_columns = ["物品", "品牌", "规格", "现有库存", "盈亏数量"]
+                required_columns = ["物品", "品牌", "规格", "系统库存", "实际库存"]
                 for col in required_columns:
                     if col not in df.columns:
                         flash(f"文件缺少必要的列: {col}", "error")
@@ -260,9 +260,15 @@ def batch_takestock():
                     item_name = str(row["物品"]).strip()
                     brand = str(row["品牌"]).strip()
                     spec = str(row["规格"]).strip()
-                    delta_count = (
-                        int(row["盈亏数量"]) if not pd.isna(row["盈亏数量"]) else 0
+                    system_count = (
+                        int(row["系统库存"]) if not pd.isna(row["系统库存"]) else 0
                     )
+                    actual_count = (
+                        int(row["实际库存"]) if not pd.isna(row["实际库存"]) else 0
+                    )
+
+                    # Calculate the adjustment needed (actual - system)
+                    delta_count = actual_count - system_count
 
                     if not item_name or not brand or not spec:
                         continue  # Skip incomplete rows  # pragma: no cover
@@ -342,8 +348,8 @@ def generate_takestock_template(warehouse, only_with_stock=False):
                 "物品": item_name,
                 "品牌": brand,
                 "规格": spec,
-                "现有库存": wis.count,
-                "盈亏数量": 0,  # Default value for the inventory adjustment column
+                "系统库存": wis.count,
+                "实际库存": wis.count,  # Default value is same as system count
             }
         )
 
