@@ -3,6 +3,7 @@ from flask_bootstrap import Bootstrap5
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
+from flask_migrate import Migrate
 
 
 app = Flask(__name__)
@@ -21,6 +22,7 @@ bootstrap = Bootstrap5(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 
 @login_manager.user_loader

@@ -61,6 +61,8 @@ class ItemSKU(db.Model):
     # SKU specific details
     brand: Mapped[str] = mapped_column(String(30))
     spec: Mapped[str] = mapped_column(String(50))
+    # Whether this SKU is disabled/deprecated
+    disabled: Mapped[bool] = mapped_column(default=False, nullable=False)
     # Related transactions and warehouse inventory
     trasanctions: Mapped[List["Transaction"]] = relationship(back_populates="itemSKU")
     warehouses: Mapped[List["WarehouseItemSKU"]] = relationship(
@@ -113,6 +115,8 @@ class Receipt(db.Model):
     operator_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
     operator: Mapped[User] = relationship(back_populates="receipts")
     date: Mapped[datetime] = mapped_column(default=datetime.now, nullable=False)
+    # Whether this receipt is revoked
+    revoked: Mapped[bool] = mapped_column(default=False, nullable=False)
     # Related items and warehouse
     transactions: Mapped[List[Transaction]] = relationship(back_populates="receipt")
     warehouse_id: Mapped[int] = mapped_column(
