@@ -1,16 +1,17 @@
+import os
 import pytest
-from wms import app, db
-from wms.models import User, Item, ItemSKU, Warehouse, Area, Department
-import uuid
+
+# Set testing environment variable before importing the app
+os.environ["TESTING"] = "True"
+
+# Now import app and db
+from wms import app, db  # noqa : E402
+from wms.models import User, Item, ItemSKU, Warehouse, Area, Department  # noqa : E402
+import uuid  # noqa : E402
 
 
 @pytest.fixture(scope="function")
 def client():
-    app.config["TESTING"] = True
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-    app.config["WTF_CSRF_ENABLED"] = False
-    app.config["SECRET_KEY"] = "test-key"
-
     with app.test_client() as client:
         with app.app_context():
             db.create_all()
