@@ -175,8 +175,13 @@ def stockin():
         # Check if the refcode already exists
         existing_receipt = Receipt.query.filter_by(refcode=form.refcode.data).first()
         if existing_receipt:
-            flash(f"入库单号 '{form.refcode.data}' 已存在，请使用不同的入库单号。", "danger")
-            return render_template("inventory_stockin.html.jinja", form=form, items=items)
+            flash(
+                f"入库单号 '{form.refcode.data}' 已存在，请使用不同的入库单号。",
+                "danger",
+            )
+            return render_template(
+                "inventory_stockin.html.jinja", form=form, items=items
+            )
 
         receipt = Receipt(
             operator=current_user,
@@ -184,7 +189,7 @@ def stockin():
             warehouse_id=form.warehouse.data,
             type=ReceiptType.STOCKIN,
         )
-        
+
         try:
             db.session.add(receipt)
             db.session.flush()
@@ -233,10 +238,15 @@ def stockin():
             db.session.rollback()
             # Check if it's a unique constraint error
             if "UNIQUE constraint failed: receipt.refcode" in str(e):
-                flash(f"入库单号 '{form.refcode.data}' 已存在，请使用不同的入库单号。", "danger")
+                flash(
+                    f"入库单号 '{form.refcode.data}' 已存在，请使用不同的入库单号。",
+                    "danger",
+                )
             else:
                 flash(f"处理过程中出现错误: {str(e)}", "danger")
-            return render_template("inventory_stockin.html.jinja", form=form, items=items)
+            return render_template(
+                "inventory_stockin.html.jinja", form=form, items=items
+            )
     else:
         if request.method == "POST":
             for field, errors in form.errors.items():  # pragma: no cover
