@@ -260,40 +260,52 @@ def batch_takestock():
                     item_name = str(row["物品"]).strip()
                     brand = str(row["品牌"]).strip()
                     spec = str(row["规格"]).strip()
-                    system_count = (
-                        int(row["系统库存"]) if not pd.isna(row["系统库存"]) else 0
-                    )
                     actual_count = (
                         int(row["实际库存"]) if not pd.isna(row["实际库存"]) else 0
                     )
 
-                    # Calculate the adjustment needed (actual - system)
-                    delta_count = actual_count - system_count
-
                     if not item_name or not brand or not spec:
                         continue  # Skip incomplete rows  # pragma: no cover
 
-                    # Find or create item
+                    # Find item and SKU first
                     item = db.session.execute(
                         db.select(Item).filter_by(name=item_name)
                     ).scalar_one_or_none()
 
+                    item_sku = None  # Initialize item_sku outside the if-else blocks
+
                     if not item:
                         item = Item(name=item_name)
                         db.session.add(item)
-                        db.session.flush()  # To get the item ID
+                        db.session.flush()
+                        system_count = 0  # New item, so system count is 0
+                    else:
+                        # Find existing SKU
+                        item_sku = db.session.execute(
+                            db.select(ItemSKU).filter_by(
+                                item_id=item.id, brand=brand, spec=spec
+                            )
+                        ).scalar_one_or_none()
 
-                    # Find or create item SKU
-                    item_sku = db.session.execute(
-                        db.select(ItemSKU).filter_by(
-                            item_id=item.id, brand=brand, spec=spec
-                        )
-                    ).scalar_one_or_none()
+                        if item_sku:
+                            # Get current system count from warehouse_item_sku
+                            wis = db.session.execute(
+                                db.select(WarehouseItemSKU).filter_by(
+                                    warehouse_id=warehouse.id, itemSKU_id=item_sku.id
+                                )
+                            ).scalar_one_or_none()
+                            system_count = wis.count if wis else 0
+                        else:
+                            system_count = 0  # New SKU, so system count is 0
 
+                    # Create item SKU if it doesn't exist
                     if not item_sku:
                         item_sku = ItemSKU(item_id=item.id, brand=brand, spec=spec)
                         db.session.add(item_sku)
                         db.session.flush()  # To get the SKU ID
+
+                    # Calculate the adjustment needed (actual - system)
+                    delta_count = actual_count - system_count
 
                     # Create transaction only if there's a change in count
                     if delta_count != 0:

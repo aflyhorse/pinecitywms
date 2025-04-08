@@ -349,3 +349,34 @@ def test_batch_takestock_new_items(client, auth_client, test_user, test_warehous
     ).scalar_one_or_none()
     assert wis is not None
     assert wis.count == 5
+
+    # Wait 2 seconds to ensure the timestamp is different
+    import time
+
+    time.sleep(2)
+
+    # Create another Excel file with the same item and stock
+    excel_file = io.BytesIO()
+    df.to_excel(excel_file, index=False)
+    excel_file.seek(0)
+    data["file"] = (excel_file, "test.xlsx")
+
+    # Submit the same form again
+    response = auth_client.post(
+        "/batch_takestock",
+        data=data,
+        follow_redirects=True,
+        content_type="multipart/form-data",
+    )
+
+    # Verify the response indicates no new records were processed
+    assert "成功处理 0 条记录" in response.get_data(as_text=True)
+
+    # Verify the stock wasn't added twice (should still be 5)
+    wis = db.session.execute(
+        db.select(WarehouseItemSKU).filter_by(
+            warehouse_id=test_warehouse, itemSKU_id=sku.id
+        )
+    ).scalar_one_or_none()
+    assert wis is not None
+    assert wis.count == 5
