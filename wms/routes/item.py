@@ -79,7 +79,18 @@ def item_create():
             db.session.add(item)
             db.session.flush()
 
-        # Create new SKU for the item (whether existing or new)
+        # Check if SKU with same brand and spec already exists for this item
+        existing_sku = db.session.execute(
+            select(ItemSKU).filter_by(
+                item_id=item.id, brand=form.brand.data, spec=form.spec.data
+            )
+        ).scalar_one_or_none()
+
+        if existing_sku:
+            flash("物品和对应型号已存在", "danger")
+            return render_template("item_create.html.jinja", form=form, items=items)
+
+        # Create new SKU for the item
         sku = ItemSKU(item_id=item.id, brand=form.brand.data, spec=form.spec.data)
         db.session.add(sku)
         db.session.commit()

@@ -75,3 +75,40 @@ def test_non_admin_access(client, regular_user):
     response = client.get("/item/create", follow_redirects=True)
     assert response.status_code == 200
     assert b"Unauthorized Access" in response.data
+
+
+def test_duplicate_sku_validation(auth_client):
+    """Test that creating a SKU with same brand and spec for an item is prevented"""
+    # First create an item with a SKU
+    response = auth_client.post(
+        "/item/create",
+        data={
+            "item_name": "Duplicate Test Item",
+            "brand": "Duplicate Brand",
+            "spec": "Duplicate Spec",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert "物品添加成功".encode() in response.data
+
+    # Try to create another SKU with same brand and spec for the same item
+    response = auth_client.post(
+        "/item/create",
+        data={
+            "item_name": "Duplicate Test Item",  # Same item name
+            "brand": "Duplicate Brand",  # Same brand
+            "spec": "Duplicate Spec",  # Same spec
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert "物品和对应型号已存在".encode() in response.data
+
+    # Verify only one SKU was created in the database
+    with app.app_context():
+        item = Item.query.filter_by(name="Duplicate Test Item").first()
+        assert item is not None
+        assert len(item.skus) == 1
+        assert item.skus[0].brand == "Duplicate Brand"
+        assert item.skus[0].spec == "Duplicate Spec"
