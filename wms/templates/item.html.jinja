@@ -3,119 +3,109 @@
 {% from 'bootstrap5/pagination.html' import render_pagination %}
 {% from 'bootstrap5/utils.html' import render_icon %}
 {% block content %}
-    <div class="container p-5 my-5">
-        <div class="card mb-4">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h3 class="mb-0">物品管理</h3>
-                    </div>
-                    <div>
-                        <a href="{{ url_for('batch_stockin') }}" class="btn btn-primary me-2">批量入库</a>
-                        <a href="{{ url_for('item_create') }}" class="btn btn-primary">添加物品或具体型号</a>
-                    </div>
+<div class="container p-5 my-5">
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h3 class="mb-0">物品管理</h3>
                 </div>
-            </div>
-            <div class="card-body">
-                <datalist id="item-names">
-                    {% for name in item_names %}
-                    <option value="{{ name }}">
-                    {% endfor %}
-                </datalist>
-
-                <div class="mb-3">
-                    {{ render_form(itemSearchForm, form_type="inline") }}
+                <div>
+                    <a href="{{ url_for('batch_stockin') }}" class="btn btn-primary me-2">批量入库</a>
+                    <a href="{{ url_for('item_create') }}" class="btn btn-primary">添加物品或具体型号</a>
                 </div>
-                {% if pagination %}
-                    <div class="mb-3">共 {{ pagination.total }} 项内容。</div>
-                    {{ render_pagination(pagination,
-                            name=itemSearchForm.name.data,
-                            brand=itemSearchForm.brand.data,
-                            spec=itemSearchForm.spec.data) }}
-                {% endif %}
-                <div class="table-responsive">
-                    <table class="table table-hover table-bordered">
-                        <thead>
-                            <tr>
-                                <th>物品</th>
-                                <th>编号</th>
-                                <th>品牌</th>
-                                <th>规格</th>
-                                <th class="text-end">状态</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% set ns = namespace(prev_item=none, rowspan=0) %}
-                            {% for itemsku in pagination.items %}
-                                {% if ns.prev_item != itemsku.item.name %}
-                                    {# Count rowspan for current item #}
-                                    {% set ns.rowspan = pagination.items|selectattr('item.name', 'equalto', itemsku.item.name)|list|length %}
-                                    {% set ns.prev_item = itemsku.item.name %}
-                                    <tr class="{% if itemsku.disabled %}text-decoration-line-through{% endif %}">
-                                        <td rowspan="{{ ns.rowspan }}">{{ itemsku.item.name }}</td>
-                                        <td>{{ '%04d' % itemsku.id }}</td>
-                                        <td>{{ itemsku.brand }}</td>
-                                        <td>{{ itemsku.spec }}</td>
-                                        <td class="text-end">
-                                            <a href="#" class="toggle-disabled" data-id="{{ itemsku.id }}" data-status="{{ '1' if itemsku.disabled else '0' }}">
-                                                {% if itemsku.disabled %}
-                                                    <span class="text-primary">{{ render_icon('clipboard-check') }}</span>
-                                                {% else %}
-                                                    <span class="text-danger">{{ render_icon('clipboard-x') }}</span>
-                                                {% endif %}
-                                            </a>
-                                        </td>
-                                    </tr>
-                                {% else %}
-                                    <tr class="{% if itemsku.disabled %}text-decoration-line-through{% endif %}">
-                                        <td>{{ '%04d' % itemsku.id }}</td>
-                                        <td>{{ itemsku.brand }}</td>
-                                        <td>{{ itemsku.spec }}</td>
-                                        <td class="text-end">
-                                            <a href="#" class="toggle-disabled" data-id="{{ itemsku.id }}" data-status="{{ '1' if itemsku.disabled else '0' }}">
-                                                {% if itemsku.disabled %}
-                                                    <span class="text-primary">{{ render_icon('clipboard-check') }}</span>
-                                                {% else %}
-                                                    <span class="text-danger">{{ render_icon('clipboard-x') }}</span>
-                                                {% endif %}
-                                            </a>
-                                        </td>
-                                    </tr>
-                                {% endif %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% if pagination %}
-                    {{ render_pagination(pagination,
-                            name=itemSearchForm.name.data,
-                            brand=itemSearchForm.brand.data,
-                            spec=itemSearchForm.spec.data) }}
-                {% endif %}
             </div>
         </div>
+        <div class="card-body">
+            <datalist id="item-names">
+                {% for name in item_names %}
+                <option value="{{ name }}">
+                    {% endfor %}
+            </datalist>
+
+            <div class="mb-3">
+                {{ render_form(itemSearchForm, form_type="inline") }}
+            </div>
+            {% if pagination %}
+            <div class="mb-3">共 {{ pagination.total }} 项内容。</div>
+            {{ render_pagination(pagination,
+            name=itemSearchForm.name.data,
+            brand=itemSearchForm.brand.data,
+            spec=itemSearchForm.spec.data) }}
+            {% endif %}
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered">
+                    <thead>
+                        <tr>
+                            <th>物品</th>
+                            <th>编号</th>
+                            <th>品牌</th>
+                            <th>规格</th>
+                            <th class="text-end">状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set ns = namespace(prev_item=none, rowspan=0) %}
+                        {% for itemsku in pagination.items %}
+                        <tr>
+                            {% if ns.prev_item != itemsku.item.name %}
+                            {# Count rowspan for current item #}
+                            {% set ns.rowspan = pagination.items|selectattr('item.name', 'equalto',
+                            itemsku.item.name)|list|length %}
+                            {% set ns.prev_item = itemsku.item.name %}
+                            <td rowspan="{{ ns.rowspan }}">{{ itemsku.item.name }}</td>
+                            {% endif %}
+                            <td class="{% if itemsku.disabled %}text-decoration-line-through text-secondary{% endif %}">
+                                {{ '%04d' % itemsku.id }}</td>
+                            <td class="{% if itemsku.disabled %}text-decoration-line-through text-secondary{% endif %}">
+                                {{ itemsku.brand }}</td>
+                            <td class="{% if itemsku.disabled %}text-decoration-line-through text-secondary{% endif %}">
+                                {{ itemsku.spec }}</td>
+                            <td class="text-end">
+                                <a href="#" class="toggle-disabled" data-id="{{ itemsku.id }}"
+                                    data-status="{{ '1' if itemsku.disabled else '0' }}">
+                                    {% if itemsku.disabled %}
+                                    <span class="text-primary">{{ render_icon('clipboard-check') }}</span>
+                                    {% else %}
+                                    <span class="text-danger">{{ render_icon('clipboard-x') }}</span>
+                                    {% endif %}
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if pagination %}
+            {{ render_pagination(pagination,
+            name=itemSearchForm.name.data,
+            brand=itemSearchForm.brand.data,
+            spec=itemSearchForm.spec.data) }}
+            {% endif %}
+        </div>
     </div>
+</div>
 {% endblock content %}
 
 {% block scripts %}
 {{ super() }}
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         const toggleButtons = document.querySelectorAll('.toggle-disabled');
-        
+
         toggleButtons.forEach(button => {
-            button.addEventListener('click', function(e) {
+            button.addEventListener('click', function (e) {
                 e.preventDefault();
                 const itemId = this.dataset.id;
                 const currentStatus = this.dataset.status === '1'; // '1' means disabled
-                
+
                 let confirmMessage;
                 if (currentStatus) {
                     confirmMessage = '确定要启用此物品吗？';
                 } else {
                     confirmMessage = '确定要禁用此物品吗？禁用后将不会在入库和添加表单中显示。';
                 }
-                
+
                 if (confirm(confirmMessage)) {
                     // Send AJAX request to toggle status
                     fetch(`/item/${itemId}/toggle_disabled`, {
@@ -124,18 +114,18 @@
                             'Content-Type': 'application/json'
                         }
                     })
-                    .then(response => {
-                        if (response.ok) {
-                            // Reload the page to show updated status
-                            window.location.reload();
-                        } else {
-                            alert('操作失败，请重试。');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('发生错误，请重试。');
-                    });
+                        .then(response => {
+                            if (response.ok) {
+                                // Reload the page to show updated status
+                                window.location.reload();
+                            } else {
+                                alert('操作失败，请重试。');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('发生错误，请重试。');
+                        });
                 }
             });
         });
