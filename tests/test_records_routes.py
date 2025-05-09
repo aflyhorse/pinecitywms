@@ -1,5 +1,14 @@
 import pytest
-from wms.models import Receipt, ReceiptType, Transaction, ItemSKU, Item, User, Warehouse
+from wms.models import (
+    Receipt,
+    ReceiptType,
+    Transaction,
+    ItemSKU,
+    Item,
+    User,
+    Warehouse,
+    WarehouseItemSKU,
+)
 from werkzeug.security import generate_password_hash
 from wms import app, db
 from datetime import datetime, timedelta
@@ -892,7 +901,8 @@ def test_statistics_usage_data_accuracy(auth_client, test_warehouse, test_custom
         f"/statistics_usage?start_date={start_date}&end_date={end_date}"
     )
     assert response.status_code == 200
-    assert str(15).encode() in response.data  # Total usage should be 15 (10 + 5)
+    # Total usage should be 15 (10 + 5)
+    assert str(15).encode() in response.data
 
     # Test with item name filter
     response = auth_client.get(
@@ -964,8 +974,10 @@ def test_statistics_usage_with_stockin_ignored(auth_client, test_warehouse):
     # Test statistics - should only show the stockout amount
     response = auth_client.get("/statistics_usage")
     assert response.status_code == 200
-    assert str(8).encode() in response.data  # Only stockout amount should be counted
-    assert str(2000).encode() not in response.data  # Stockin amount should not appear
+    # Only stockout amount should be counted
+    assert str(8).encode() in response.data
+    # Stockin amount should not appear
+    assert str(2000).encode() not in response.data
 
 
 @pytest.mark.usefixtures("test_item")
@@ -1098,3 +1110,450 @@ def test_export_takestock_records(auth_client, test_warehouse):
         f"/records/export?type=takestock&warehouse={test_warehouse}"
     )
     assert response.status_code == 200
+
+
+@pytest.mark.usefixtures("test_item")
+def test_receipt_detail_access(client, test_user, regular_user):
+    """Test access control for receipt_detail route"""
+    with app.app_context():
+        # Create test warehouses
+        admin_warehouse = Warehouse(name="Admin Warehouse", owner=test_user)
+        user_warehouse = Warehouse(name="User Warehouse", owner=regular_user)
+        public_warehouse = Warehouse(name="Public Warehouse", is_public=True)
+        db.session.add_all([admin_warehouse, user_warehouse, public_warehouse])
+        db.session.flush()
+
+        # Get a test SKU
+        sku = ItemSKU.query.first()
+
+        # Create receipts in different warehouses
+        admin_receipt = Receipt(
+            operator=test_user,
+            warehouse=admin_warehouse,
+            type=ReceiptType.STOCKIN,
+            refcode="ADMIN-TEST-RECEIPT",
+        )
+        user_receipt = Receipt(
+            operator=regular_user,
+            warehouse=user_warehouse,
+            type=ReceiptType.STOCKOUT,
+            refcode="USER-TEST-RECEIPT",
+        )
+        public_receipt = Receipt(
+            operator=test_user,
+            warehouse=public_warehouse,
+            type=ReceiptType.TAKESTOCK,
+            refcode="PUBLIC-TEST-RECEIPT",
+        )
+        db.session.add_all([admin_receipt, user_receipt, public_receipt])
+        db.session.flush()
+
+        # Add transactions to receipts
+        for receipt in [admin_receipt, user_receipt, public_receipt]:
+            transaction = Transaction(
+                itemSKU=sku,
+                count=10 if receipt.type == ReceiptType.STOCKIN else -10,
+                price=100.00,
+                receipt=receipt,
+            )
+            db.session.add(transaction)
+
+        db.session.commit()
+
+        # Store receipt IDs for test assertions
+        admin_receipt_id = admin_receipt.id
+        user_receipt_id = user_receipt.id
+        public_receipt_id = public_receipt.id
+
+    # Test 1: Access without login should redirect to login page
+    response = client.get(f"/receipt/{admin_receipt_id}")
+    assert response.status_code == 302
+    assert "/login" in response.headers.get("Location", "")
+
+    # Login as admin user
+    client.post(
+        "/login",
+        data={"username": "testadmin", "password": "password123", "remember": "y"},
+    )
+
+    # Test 2: Admin should be able to access all receipts
+    # Admin access to own receipt
+    response = client.get(f"/receipt/{admin_receipt_id}")
+    assert response.status_code == 200
+    assert "ADMIN-TEST-RECEIPT".encode() in response.data
+    assert "撤销".encode() in response.data  # Admin can revoke
+
+    # Admin access to user's receipt
+    response = client.get(f"/receipt/{user_receipt_id}")
+    assert response.status_code == 200
+    assert "USER-TEST-RECEIPT".encode() in response.data
+    assert "撤销".encode() in response.data  # Admin can revoke
+
+    # Admin access to public warehouse receipt
+    response = client.get(f"/receipt/{public_receipt_id}")
+    assert response.status_code == 200
+    assert "PUBLIC-TEST-RECEIPT".encode() in response.data
+
+    # Logout admin
+    client.get("/logout")
+
+    # Login as regular user
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+
+    # Test 3: Regular user should be able to access their own receipts
+    response = client.get(f"/receipt/{user_receipt_id}")
+    assert response.status_code == 200
+    assert "USER-TEST-RECEIPT".encode() in response.data
+
+    # Test 4: Regular user should be able to access public warehouse receipts
+    response = client.get(f"/receipt/{public_receipt_id}")
+    assert response.status_code == 200
+    assert "PUBLIC-TEST-RECEIPT".encode() in response.data
+
+    # Test 5: Regular user should NOT be able to access admin's receipt
+    response = client.get(f"/receipt/{admin_receipt_id}", follow_redirects=True)
+    assert "您没有权限查看此单据".encode() in response.data
+
+    # Test 6: Access to non-existent receipt should return 404
+    response = client.get("/receipt/99999")
+    assert response.status_code == 404
+
+
+@pytest.mark.usefixtures("test_item")
+def test_receipt_detail_revoke_permission(client, test_user, regular_user):
+    """Test revoke permission display on receipt_detail page"""
+    with app.app_context():
+        # Create test warehouses
+        user_warehouse = Warehouse(name="User Warehouse", owner=regular_user)
+        db.session.add(user_warehouse)
+        db.session.flush()
+
+        # Get a test SKU
+        sku = ItemSKU.query.first()
+
+        # Create a new receipt for regular user
+        current_time = datetime.now()
+        recent_receipt = Receipt(
+            operator=regular_user,
+            warehouse=user_warehouse,
+            type=ReceiptType.STOCKOUT,
+            refcode="RECENT-RECEIPT",
+            date=current_time,
+        )
+
+        # Create an old receipt (more than 24 hours ago)
+        old_receipt = Receipt(
+            operator=regular_user,
+            warehouse=user_warehouse,
+            type=ReceiptType.STOCKOUT,
+            refcode="OLD-RECEIPT",
+            date=current_time - timedelta(hours=25),
+        )
+
+        db.session.add_all([recent_receipt, old_receipt])
+        db.session.flush()
+
+        # Add transactions
+        for receipt in [recent_receipt, old_receipt]:
+            transaction = Transaction(
+                itemSKU=sku,
+                count=-5,
+                price=100.00,
+                receipt=receipt,
+            )
+            db.session.add(transaction)
+
+        db.session.commit()
+
+        # Store receipt IDs
+        recent_receipt_id = recent_receipt.id
+        old_receipt_id = old_receipt.id
+
+    # Login as regular user
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+
+    # User should see revoke button for recent receipt (within 24h)
+    response = client.get(f"/receipt/{recent_receipt_id}")
+    assert response.status_code == 200
+    assert "撤销此单据".encode() in response.data
+
+    # User should see an alert for old receipt (beyond 24h)
+    response = client.get(f"/receipt/{old_receipt_id}")
+    assert response.status_code == 200
+    assert "您没有权限撤销此单据".encode() in response.data
+    assert "24小时内".encode() in response.data
+
+    # Logout regular user
+    client.get("/logout")
+
+    # Login as admin
+    client.post(
+        "/login",
+        data={"username": "testadmin", "password": "password123", "remember": "y"},
+    )
+
+    # Admin should see revoke button for both recent and old receipts
+    response = client.get(f"/receipt/{recent_receipt_id}")
+    assert response.status_code == 200
+    assert "撤销此单据".encode() in response.data
+
+    response = client.get(f"/receipt/{old_receipt_id}")
+    assert response.status_code == 200
+    assert "撤销此单据".encode() in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_revoke_receipt(client, test_user, regular_user):
+    """Test revoking a receipt"""
+    with app.app_context():
+        # Create test warehouses
+        user_warehouse = Warehouse(name="User Warehouse", owner=regular_user)
+        db.session.add(user_warehouse)
+        db.session.flush()
+
+        # Get a test SKU
+        sku = ItemSKU.query.first()
+        initial_quantity = 100
+
+        # Create a stock-in receipt to ensure we have stock
+        stockin_receipt = Receipt(
+            operator=regular_user,
+            warehouse=user_warehouse,
+            type=ReceiptType.STOCKIN,
+            refcode="STOCKIN-TEST-INITIAL",
+        )
+        db.session.add(stockin_receipt)
+        db.session.flush()
+
+        # Add transaction for initial stock
+        stockin_transaction = Transaction(
+            itemSKU=sku,
+            count=initial_quantity,
+            price=50.00,
+            receipt=stockin_receipt,
+        )
+        db.session.add(stockin_transaction)
+        db.session.flush()
+
+        # Update warehouse inventory
+        stockin_receipt.update_warehouse_item_skus()
+
+        # Create a STOCKOUT receipt
+        stockout_receipt = Receipt(
+            operator=regular_user,
+            warehouse=user_warehouse,
+            type=ReceiptType.STOCKOUT,
+            refcode="STOCKOUT-TO-REVOKE",
+            date=datetime.now(),
+        )
+        db.session.add(stockout_receipt)
+        db.session.flush()
+
+        # Add transaction to the receipt
+        stockout_quantity = 20
+        stockout_transaction = Transaction(
+            itemSKU=sku,
+            count=-stockout_quantity,  # Negative for stockout
+            price=100.00,
+            receipt=stockout_receipt,
+        )
+        db.session.add(stockout_transaction)
+        db.session.commit()
+
+        # Update warehouse inventory
+        stockout_receipt.update_warehouse_item_skus()
+
+        # Get the receipt ID
+        receipt_id = stockout_receipt.id
+
+        # Check stock after stockout (query WarehouseItemSKU directly)
+        warehouse_item = (
+            db.session.query(WarehouseItemSKU)
+            .filter_by(warehouse_id=user_warehouse.id, itemSKU_id=sku.id)
+            .first()
+        )
+        assert warehouse_item.count == initial_quantity - stockout_quantity
+
+    # Login as regular user
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+
+    # Test 1: Attempt revoke without providing a reason
+    response = client.post(
+        f"/receipt/{receipt_id}/revoke", data={}, follow_redirects=True
+    )
+    assert "请提供撤销原因".encode() in response.data
+
+    # Test 2: Successfully revoke the receipt
+    response = client.post(
+        f"/receipt/{receipt_id}/revoke",
+        data={"reason": "Test revocation reason"},
+        follow_redirects=True,
+    )
+    assert "单据已成功撤销".encode() in response.data
+
+    # Verify the receipt is now marked as revoked
+    with app.app_context():
+        receipt = db.session.get(Receipt, receipt_id)
+        assert receipt.revoked is True
+        assert "Test revocation reason" in receipt.note
+
+        # Verify a counter receipt was created
+        counter_receipt = Receipt.query.filter_by(
+            refcode=f"RV-{receipt.refcode}"
+        ).first()
+        assert counter_receipt is not None
+
+        # Verify inventory was restored (query WarehouseItemSKU directly)
+        warehouse_item = (
+            db.session.query(WarehouseItemSKU)
+            .filter_by(warehouse_id=user_warehouse.id, itemSKU_id=sku.id)
+            .first()
+        )
+        assert warehouse_item.count == initial_quantity
+
+    # Test 3: Try to revoke an already revoked receipt
+    response = client.post(
+        f"/receipt/{receipt_id}/revoke",
+        data={"reason": "Another reason"},
+        follow_redirects=True,
+    )
+    assert "此单据已被撤销".encode() in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_revoke_receipt_permissions(client, test_user, regular_user):
+    """Test permissions for revoking receipts"""
+    with app.app_context():
+        # Create test warehouses
+        admin_warehouse = Warehouse(name="Admin Warehouse", owner=test_user)
+        user_warehouse = Warehouse(name="User Warehouse", owner=regular_user)
+        db.session.add_all([admin_warehouse, user_warehouse])
+        db.session.flush()
+
+        # Get a test SKU
+        sku = ItemSKU.query.first()
+
+        # Create receipts
+        current_time = datetime.now()
+
+        # First, create stock in user's warehouse
+        user_stockin = Receipt(
+            operator=regular_user,
+            warehouse=user_warehouse,
+            type=ReceiptType.STOCKIN,
+            refcode="USER-STOCK-INITIAL",
+            date=current_time,
+        )
+        db.session.add(user_stockin)
+        db.session.flush()
+
+        # Add transaction for initial stock in user warehouse
+        user_stockin_transaction = Transaction(
+            itemSKU=sku,
+            count=20,  # Add enough stock
+            price=100.00,
+            receipt=user_stockin,
+        )
+        db.session.add(user_stockin_transaction)
+        db.session.commit()
+
+        # Update user warehouse inventory first
+        user_stockin.update_warehouse_item_skus()
+
+        # Receipt in admin's warehouse
+        admin_receipt = Receipt(
+            operator=test_user,
+            warehouse=admin_warehouse,
+            type=ReceiptType.STOCKIN,
+            refcode="ADMIN-RECEIPT",
+            date=current_time,
+        )
+
+        # Old receipt in user's warehouse (more than 24h old)
+        old_receipt = Receipt(
+            operator=regular_user,
+            warehouse=user_warehouse,
+            type=ReceiptType.STOCKOUT,
+            refcode="OLD-USER-RECEIPT",
+            date=current_time - timedelta(hours=25),
+        )
+
+        db.session.add_all([admin_receipt, old_receipt])
+        db.session.flush()
+
+        # Add transactions
+        admin_transaction = Transaction(
+            itemSKU=sku,
+            count=10,
+            price=100.00,
+            receipt=admin_receipt,
+        )
+
+        old_transaction = Transaction(
+            itemSKU=sku,
+            count=-5,  # Remove some stock
+            price=100.00,
+            receipt=old_receipt,
+        )
+
+        db.session.add_all([admin_transaction, old_transaction])
+        db.session.commit()
+
+        # Update warehouse inventory for admin receipt and old receipt
+        admin_receipt.update_warehouse_item_skus()
+        old_receipt.update_warehouse_item_skus()
+
+        # Store receipt IDs
+        admin_receipt_id = admin_receipt.id
+        old_receipt_id = old_receipt.id
+
+    # Login as regular user
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+
+    # Test 1: User tries to revoke admin's receipt
+    response = client.post(
+        f"/receipt/{admin_receipt_id}/revoke",
+        data={"reason": "Test reason"},
+        follow_redirects=True,
+    )
+    assert "您没有权限撤销此单据".encode() in response.data
+
+    # Test 2: User tries to revoke their own old receipt (>24h)
+    response = client.post(
+        f"/receipt/{old_receipt_id}/revoke",
+        data={"reason": "Test reason"},
+        follow_redirects=True,
+    )
+    assert "您只能撤销24小时内的单据".encode() in response.data
+
+    # Logout user and login as admin
+    client.get("/logout")
+    client.post(
+        "/login",
+        data={"username": "testadmin", "password": "password123", "remember": "y"},
+    )
+
+    # Test 3: Admin can revoke old user receipt (no 24h limit)
+    response = client.post(
+        f"/receipt/{old_receipt_id}/revoke",
+        data={"reason": "Admin revocation"},
+        follow_redirects=True,
+    )
+    assert "单据已成功撤销".encode() in response.data
+
+    with app.app_context():
+        receipt = db.session.get(Receipt, old_receipt_id)
+        assert receipt.revoked is True
+        assert "Admin revocation" in receipt.note

@@ -104,8 +104,7 @@
                 </thead>
                 <tbody>
                     {% for transaction in pagination.items %}
-                    <tr{% if transaction.receipt.revoked %} class="text-decoration-line-through text-secondary" {% endif
-                        %}>
+                    <tr{% if transaction.receipt.revoked %} class="text-decoration-line-through" {% endif %}>
                         <td>{{ transaction.receipt.date.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td>{{ transaction.itemSKU.item.name }}</td>
                         <td>{{ transaction.itemSKU.brand }} - {{ transaction.itemSKU.spec }}</td>
