@@ -265,6 +265,9 @@ def statistics_fee():
         )
         .join(Transaction)
         .filter(and_(*filter_conditions))
+        .filter(
+            Transaction.count < 0
+        )  # Only include negative counts which are real stockouts
         .group_by(Receipt.warehouse_id, Receipt.area_id, Receipt.department_id)
         .all()
     )
@@ -396,6 +399,9 @@ def statistics_usage():
         .join(Item)
         .filter(Receipt.type == ReceiptType.STOCKOUT)
         .filter(Receipt.revoked.is_(False))
+        .filter(
+            Transaction.count < 0
+        )  # Only include negative counts which are real stockouts
         .group_by(ItemSKU.id, Item.id)
         .order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
     )
