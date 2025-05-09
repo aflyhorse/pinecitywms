@@ -166,7 +166,8 @@ class Receipt(db.Model):
                         dec_wh_count = Decimal(str(warehouse_item_sku.count))
                         dec_trans_count = Decimal(str(transaction.count))
                         warehouse_item_sku.average_price = (
-                            dec_wh_count * Decimal(str(warehouse_item_sku.average_price))
+                            dec_wh_count
+                            * Decimal(str(warehouse_item_sku.average_price))
                             + dec_trans_count * transaction.price
                         ) / dec_total_count
                     else:
@@ -176,9 +177,38 @@ class Receipt(db.Model):
                     self.type == ReceiptType.STOCKOUT
                     or self.type == ReceiptType.TAKESTOCK
                 ):
+                    # Check if this would cause negative inventory
+                    new_count = warehouse_item_sku.count + transaction.count
+                    if new_count < 0:
+                        item_name = db.session.get(
+                            ItemSKU, transaction.itemSKU_id
+                        ).item.name
+                        brand = db.session.get(ItemSKU, transaction.itemSKU_id).brand
+                        spec = db.session.get(ItemSKU, transaction.itemSKU_id).spec
+                        warehouse_name = db.session.get(
+                            Warehouse, self.warehouse_id
+                        ).name
+                        raise ValueError(
+                            f"库存不足: {item_name} {brand} {spec} 在 {warehouse_name} 仓库中库存为 {warehouse_item_sku.count}, "
+                            f"无法扣减 {abs(transaction.count)} 件"
+                        )
                     # Update count for stock out or stock taking
-                    warehouse_item_sku.count += transaction.count
+                    warehouse_item_sku.count = new_count
             else:
+                # For new items, only allow STOCKIN or positive adjustments
+                if self.type == ReceiptType.STOCKOUT or (
+                    self.type == ReceiptType.TAKESTOCK and transaction.count < 0
+                ):
+                    item_name = db.session.get(
+                        ItemSKU, transaction.itemSKU_id
+                    ).item.name
+                    brand = db.session.get(ItemSKU, transaction.itemSKU_id).brand
+                    spec = db.session.get(ItemSKU, transaction.itemSKU_id).spec
+                    warehouse_name = db.session.get(Warehouse, self.warehouse_id).name
+                    raise ValueError(
+                        f"物品不存在于仓库: {item_name} {brand} {spec} 不在 {warehouse_name} 仓库中"
+                    )
+
                 # Create new warehouse item SKU if it doesn't exist
                 warehouse_item_sku = WarehouseItemSKU(
                     warehouse_id=self.warehouse_id,

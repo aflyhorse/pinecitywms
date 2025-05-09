@@ -104,7 +104,8 @@
                 </thead>
                 <tbody>
                     {% for transaction in pagination.items %}
-                    <tr>
+                    <tr{% if transaction.receipt.revoked %} class="text-decoration-line-through text-secondary" {% endif
+                        %}>
                         <td>{{ transaction.receipt.date.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td>{{ transaction.itemSKU.item.name }}</td>
                         <td>{{ transaction.itemSKU.brand }} - {{ transaction.itemSKU.spec }}</td>
@@ -121,16 +122,28 @@
                         <td>{{ transaction.receipt.department.name if transaction.receipt.department else '' }}</td>
                         <td>{{ transaction.receipt.location }}</td>
                         {% endif %}
-                        <td>
-                            {% if transaction.receipt.note %}
-                            <span data-bs-toggle="tooltip" data-bs-placement="right"
-                                title="{{ transaction.receipt.note }}">
-                                {{ render_icon('info-circle') }}
-                            </span>
-                            {% endif %}
+                        <td class="text-end">
+                            <div class="d-inline-flex">
+                                <div style="width: 16px; text-align: center">
+                                    {% if transaction.receipt.note %}
+                                    <span data-bs-toggle="tooltip" data-bs-placement="left"
+                                        title="{{ transaction.receipt.note }}">
+                                        {{ render_icon('info-circle') }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <div style="width: 16px; margin-left: 8px; text-align: center">
+                                    {% if not transaction.receipt.revoked %}
+                                    <a href="{{ url_for('receipt_detail', receipt_id=transaction.receipt.id) }}"
+                                        data-bs-toggle="tooltip" data-bs-placement="right" title="撤销">
+                                        {{ render_icon('x-circle') }}
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </td>
-                    </tr>
-                    {% endfor %}
+                        </tr>
+                        {% endfor %}
                 </tbody>
             </table>
             {% if pagination %}

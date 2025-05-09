@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, send_file
+from flask import render_template, request, redirect, url_for, send_file, flash
 from flask_login import login_required, current_user
 from wms import app, db
 from wms.utils import admin_required
@@ -238,7 +238,10 @@ def statistics_fee():
                 ] = 0
 
     # Process filter date range
-    filter_conditions = [Receipt.type == ReceiptType.STOCKOUT]
+    filter_conditions = [
+        Receipt.type == ReceiptType.STOCKOUT,
+        Receipt.revoked.is_(False),
+    ]
 
     if start_date:
         start_datetime = datetime.strptime(
@@ -392,6 +395,7 @@ def statistics_usage():
         .join(Receipt)
         .join(Item)
         .filter(Receipt.type == ReceiptType.STOCKOUT)
+        .filter(Receipt.revoked.is_(False))
         .group_by(ItemSKU.id, Item.id)
         .order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
     )
@@ -502,6 +506,9 @@ def records_export():
         query = query.filter(
             (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
         )
+
+    # Filter out revoked receipts
+    query = query.filter(Receipt.revoked.is_(False))
 
     if record_type == "stockin":
         query = query.filter(Receipt.type == ReceiptType.STOCKIN)
@@ -624,3 +631,140 @@ def records_export():
         as_attachment=True,
         download_name=filename,
     )
+
+
+@app.route("/receipt/<int:receipt_id>")
+@login_required
+def receipt_detail(receipt_id):
+    """Show receipt details and provide revocation interface if applicable"""
+    # Get receipt with all relationships loaded
+    receipt = (
+        db.session.query(Receipt)
+        .options(
+            joinedload(Receipt.transactions)
+            .joinedload(Transaction.itemSKU)
+            .joinedload(ItemSKU.item),
+            joinedload(Receipt.warehouse),
+            joinedload(Receipt.operator),
+            joinedload(Receipt.area),
+            joinedload(Receipt.department),
+        )
+        .filter(Receipt.id == receipt_id)
+        .first_or_404()
+    )
+
+    # Check if user has access to this receipt's warehouse
+    if not current_user.is_admin:
+        warehouse_accessible = (
+            receipt.warehouse.is_public or receipt.warehouse.owner_id == current_user.id
+        )
+        if not warehouse_accessible:
+            flash("您没有权限查看此单据", "danger")
+            return redirect(url_for("records"))
+
+    # Check if user can revoke this receipt
+    can_revoke = False
+    is_admin = current_user.is_admin
+
+    # Admin can revoke any receipt
+    if is_admin:
+        can_revoke = True
+    else:
+        # Regular users can only revoke receipts in their warehouse and within 24h
+        time_limit = datetime.now() - timedelta(hours=24)
+        warehouse_owned = receipt.warehouse.owner_id == current_user.id
+        recent_enough = receipt.date >= time_limit
+        can_revoke = warehouse_owned and recent_enough
+
+    return render_template(
+        "receipt_detail.html.jinja",
+        receipt=receipt,
+        can_revoke=can_revoke,
+        is_admin=is_admin,
+    )
+
+
+@app.route("/receipt/<int:receipt_id>/revoke", methods=["POST"])
+@login_required
+def revoke_receipt(receipt_id):
+    """Handle receipt revocation"""
+    receipt = db.session.get(Receipt, receipt_id)
+    if not receipt:
+        flash("单据不存在", "danger")
+        return redirect(url_for("records"))
+
+    # Check if receipt is already revoked
+    if receipt.revoked:
+        flash("此单据已被撤销", "warning")
+        return redirect(url_for("receipt_detail", receipt_id=receipt_id))
+
+    # Check permissions
+    if not current_user.is_admin:
+        # Check if user owns the warehouse
+        warehouse_owned = receipt.warehouse.owner_id == current_user.id
+        if not warehouse_owned:
+            flash("您没有权限撤销此单据", "danger")
+            return redirect(url_for("receipt_detail", receipt_id=receipt_id))
+
+        # Check 24h time limit for regular users
+        time_limit = datetime.now() - timedelta(hours=24)
+        if receipt.date < time_limit:
+            flash("您只能撤销24小时内的单据，请联系管理员", "danger")
+            return redirect(url_for("receipt_detail", receipt_id=receipt_id))
+
+    # Get the reason from form
+    reason = request.form.get("reason")
+    if not reason:
+        flash("请提供撤销原因", "danger")
+        return redirect(url_for("receipt_detail", receipt_id=receipt_id))
+
+    # Prepare the note with revocation reason and operator info
+    revoke_note = f"已撤销：{reason} (由 {current_user.nickname} 操作)"
+    if receipt.note:
+        # Append to existing note if there is one
+        receipt.note = f"{receipt.note}； {revoke_note}"
+    else:
+        receipt.note = revoke_note
+
+    # Mark as revoked
+    receipt.revoked = True
+
+    # Revert inventory changes by creating a counter receipt
+    # Creating a new receipt with opposite transactions for inventory
+    counter_receipt = Receipt(
+        operator=current_user,
+        warehouse_id=receipt.warehouse_id,
+        type=receipt.type,  # Same type as original
+        area_id=receipt.area_id,
+        department_id=receipt.department_id,
+        location=receipt.location,
+        note=f"撤销单据 {receipt.refcode} 的库存变更：{reason}",
+    )
+
+    if receipt.refcode:
+        counter_receipt.refcode = f"RV-{receipt.refcode}"
+
+    db.session.add(counter_receipt)
+    db.session.flush()  # To get the counter receipt ID
+
+    # Create opposite transactions
+    for transaction in receipt.transactions:
+        counter_transaction = Transaction(
+            itemSKU_id=transaction.itemSKU_id,
+            count=-transaction.count,  # Opposite of original
+            price=transaction.price,
+            receipt_id=counter_receipt.id,
+        )
+        db.session.add(counter_transaction)
+
+    try:
+        db.session.commit()
+        # Update warehouse inventory with the counter transactions
+        counter_receipt.update_warehouse_item_skus()
+        db.session.commit()
+        flash("单据已成功撤销", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"撤销单据时出错: {str(e)}", "danger")
+
+    return redirect(url_for("receipt_detail", receipt_id=receipt_id))

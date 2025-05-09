@@ -366,6 +366,7 @@ def stockout():
             )
 
         receipt = Receipt(
+            refcode=f"SO-{datetime.now().strftime('%Y%m%d%H%M%S%f')}",
             operator=current_user,
             warehouse_id=selected_warehouse.id,
             type=ReceiptType.STOCKOUT,

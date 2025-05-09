@@ -1,0 +1,125 @@
+{% extends "base.html.jinja" %}
+{% from 'bootstrap5/form.html' import render_form %}
+{% from 'bootstrap5/utils.html' import render_icon %}
+
+{% block content %}
+<div class="container p-5 my-5">
+    <div class="card mb-4">
+        <div class="card-header">
+            <h3>
+                单据详情
+                {% if receipt.revoked %}
+                <span class="badge bg-danger">已撤销</span>
+                {% endif %}
+            </h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>类型：</strong>
+                        {% if receipt.type.name == 'STOCKIN' %}
+                        入库
+                        {% elif receipt.type.name == 'STOCKOUT' %}
+                        出库
+                        {% elif receipt.type.name == 'TAKESTOCK' %}
+                        盘点
+                        {% endif %}
+                    </p>
+                    <p><strong>日期：</strong> {{ receipt.date.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p><strong>仓库：</strong> {{ receipt.warehouse.name }}</p>
+                    <p><strong>操作员：</strong> {{ receipt.operator.nickname }}</p>
+                    {% if receipt.refcode %}
+                    <p><strong>单号：</strong> {{ receipt.refcode }}</p>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    {% if receipt.area %}
+                    <p><strong>区域：</strong> {{ receipt.area.name }}</p>
+                    {% endif %}
+                    {% if receipt.department %}
+                    <p><strong>部门：</strong> {{ receipt.department.name }}</p>
+                    {% endif %}
+                    {% if receipt.location %}
+                    <p><strong>具体地点：</strong> {{ receipt.location }}</p>
+                    {% endif %}
+                    {% if receipt.note %}
+                    <p><strong>备注：</strong> {{ receipt.note }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <h4 class="mt-4">物品明细</h4>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>物品</th>
+                        <th>品牌</th>
+                        <th>规格</th>
+                        <th>数量</th>
+                        <th>价格</th>
+                        <th>小计</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in receipt.transactions %}
+                    <tr class="{% if receipt.revoked %}text-decoration-line-through text-secondary{% endif %}">
+                        <td>{{ transaction.itemSKU.item.name }}</td>
+                        <td>{{ transaction.itemSKU.brand }}</td>
+                        <td>{{ transaction.itemSKU.spec }}</td>
+                        <td>{{ transaction.count if transaction.count >= 0 else -transaction.count }}</td>
+                        <td>¥{{ "%.2f"|format(transaction.price) }}</td>
+                        <td>¥{{ "%.2f"|format(transaction.count * transaction.price) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="5" class="text-end">总计：</th>
+                        <th>¥{{ "%.2f"|format(receipt.sum) }}</th>
+                    </tr>
+                </tfoot>
+            </table>
+
+            {% if not receipt.revoked and can_revoke %}
+            <div class="mt-5">
+                <h4>撤销单据</h4>
+                <div class="alert alert-warning">
+                    <p><strong>注意：</strong> 撤销单据将会使其中的库存变更失效，但不会从历史记录中删除。请谨慎操作。</p>
+                    {% if not is_admin %}
+                    <p><strong>提示：</strong> 只能撤销24小时内的单据。如需撤销更早的单据，请联系管理员。</p>
+                    {% endif %}
+                </div>
+                <form method="POST" action="{{ url_for('revoke_receipt', receipt_id=receipt.id) }}">
+                    <div class="mb-3">
+                        <label for="reason" class="form-label">撤销原因</label>
+                        <textarea class="form-control" id="reason" name="reason" rows="3" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('确定要撤销此单据吗？此操作不可逆！')">
+                        撤销单据
+                    </button>
+                    <a href="{{ url_for('records') }}" class="btn btn-secondary">返回</a>
+                </form>
+            </div>
+            {% else %}
+            <div class="mt-3">
+                <a href="{{ url_for('records') }}" class="btn btn-primary">返回</a>
+                {% if receipt.revoked %}
+                <div class="alert alert-danger mt-3">
+                    <p><strong>此单据已被撤销</strong></p>
+                    {% if receipt.note %}
+                    <p><strong>撤销原因：</strong> {{ receipt.note }}</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if not can_revoke and not receipt.revoked %}
+                <div class="alert alert-info mt-3">
+                    <p>您没有权限撤销此单据。只能撤销您所在仓库的单据且在24小时内创建的单据。</p>
+                    <p>如需撤销此单据，请联系管理员。</p>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock content %}

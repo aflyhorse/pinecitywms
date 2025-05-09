@@ -78,7 +78,7 @@ def batch_stockin():
                     return redirect(url_for("batch_stockin"))
 
             # Generate refcode for this batch operation
-            refcode = f"IMPORT-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            refcode = f"IM-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
 
             # Create the receipt for this batch operation
             receipt = Receipt(
