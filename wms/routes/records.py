@@ -682,11 +682,17 @@ def receipt_detail(receipt_id):
         recent_enough = receipt.date >= time_limit
         can_revoke = warehouse_owned and recent_enough
 
+    # Create revoke form
+    from wms.forms import RevokeReceiptForm
+
+    revoke_form = RevokeReceiptForm()
+
     return render_template(
         "receipt_detail.html.jinja",
         receipt=receipt,
         can_revoke=can_revoke,
         is_admin=is_admin,
+        revoke_form=revoke_form,
     )
 
 
@@ -694,6 +700,10 @@ def receipt_detail(receipt_id):
 @login_required
 def revoke_receipt(receipt_id):
     """Handle receipt revocation"""
+    from wms.forms import RevokeReceiptForm
+
+    form = RevokeReceiptForm()
+
     receipt = db.session.get(Receipt, receipt_id)
     if not receipt:
         flash("单据不存在", "danger")
@@ -718,9 +728,10 @@ def revoke_receipt(receipt_id):
             flash("您只能撤销24小时内的单据，请联系管理员", "danger")
             return redirect(url_for("receipt_detail", receipt_id=receipt_id))
 
-    # Get the reason from form
-    reason = request.form.get("reason")
-    if not reason:
+    # Validate the form
+    if form.validate_on_submit():
+        reason = form.reason.data
+    else:
         flash("请提供撤销原因", "danger")
         return redirect(url_for("receipt_detail", receipt_id=receipt_id))
 

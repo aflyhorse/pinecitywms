@@ -11,6 +11,7 @@ from wtforms import (
     FormField,
     HiddenField,
     FileField,
+    TextAreaField,
 )
 from wtforms.validators import (
     DataRequired,
@@ -143,3 +144,10 @@ class PasswordChangeForm(FlaskForm):
 
         if not current_user.is_admin and field.data != current_user.username:
             raise ValidationError("您只能修改自己的密码。")
+
+
+class RevokeReceiptForm(FlaskForm):
+    reason = TextAreaField(
+        "撤销原因", validators=[DataRequired(), Length(1, 200)], render_kw={"rows": "3"}
+    )
+    submit = SubmitField("撤销单据")

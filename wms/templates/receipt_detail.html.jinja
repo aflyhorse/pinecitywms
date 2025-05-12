@@ -62,7 +62,7 @@
                 </thead>
                 <tbody>
                     {% for transaction in receipt.transactions %}
-                    <tr class="{% if receipt.revoked %}text-decoration-line-through text-secondary{% endif %}">
+                    <tr>
                         <td>{{ transaction.itemSKU.item.name }}</td>
                         <td>{{ transaction.itemSKU.brand }}</td>
                         <td>{{ transaction.itemSKU.spec }}</td>
@@ -85,20 +85,33 @@
                 <h4>撤销单据</h4>
                 <div class="alert alert-warning">
                     <p><strong>注意：</strong> 撤销单据将会使其中的库存变更失效，但不会从历史记录中删除。请谨慎操作。</p>
+                    {% if receipt.type.name == 'STOCKIN' %}
+                    <p><strong>警告：</strong> 如果商品已被出库，请先撤销对应出库单，再撤销入库单。</p>
+                    {% endif %}
                     {% if not is_admin %}
                     <p><strong>提示：</strong> 只能撤销24小时内的单据。如需撤销更早的单据，请联系管理员。</p>
                     {% endif %}
                 </div>
-                <form method="POST" action="{{ url_for('revoke_receipt', receipt_id=receipt.id) }}">
+                <form method="POST" action="{{ url_for('revoke_receipt', receipt_id=receipt.id) }}" id="revoke-form">
+                    {{ revoke_form.hidden_tag() }}
                     <div class="mb-3">
-                        <label for="reason" class="form-label">撤销原因</label>
-                        <textarea class="form-control" id="reason" name="reason" rows="3" required></textarea>
+                        <label for="{{ revoke_form.reason.id }}" class="form-label">{{ revoke_form.reason.label.text
+                            }}</label>
+                        {{ revoke_form.reason(class="form-control", rows=3) }}
                     </div>
-                    <button type="submit" class="btn btn-danger" onclick="return confirm('确定要撤销此单据吗？此操作不可逆！')">
-                        撤销单据
-                    </button>
-                    <a href="{{ url_for('records') }}" class="btn btn-secondary">返回</a>
+                    <div class="d-flex gap-2">
+                        {{ revoke_form.submit(class="btn btn-danger") }}
+                        <a href="{{ url_for('records') }}" class="btn btn-secondary">返回</a>
+                    </div>
                 </form>
+                <script>
+                    // Add confirmation dialog to the form
+                    document.getElementById('revoke-form').addEventListener('submit', function (e) {
+                        if (!confirm('确定要撤销此单据吗？此操作不可逆！')) {
+                            e.preventDefault();
+                        }
+                    });
+                </script>
             </div>
             {% else %}
             <div class="mt-3">
