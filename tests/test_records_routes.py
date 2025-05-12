@@ -955,6 +955,10 @@ def test_statistics_usage_with_stockin_ignored(auth_client, test_warehouse):
             itemSKU=sku, count=2000, price=100.00, receipt=receipt_in
         )
         db.session.add(transaction_in)
+        db.session.commit()
+
+        # Update warehouse inventory
+        receipt_in.update_warehouse_item_skus()
 
         # Create a stockout receipt
         receipt_out = Receipt(
@@ -968,8 +972,10 @@ def test_statistics_usage_with_stockin_ignored(auth_client, test_warehouse):
             itemSKU=sku, count=-8, price=110.00, receipt=receipt_out
         )
         db.session.add(transaction_out)
-
         db.session.commit()
+
+        # Update warehouse inventory
+        receipt_out.update_warehouse_item_skus()
 
     # Test statistics - should only show the stockout amount
     response = auth_client.get("/statistics_usage")
@@ -1790,3 +1796,117 @@ def test_revoked_transactions_excluded_from_usage_statistics(
     assert str(800).encode() not in response.data  # Combined count (500 + 300)
     assert str(200).encode() not in response.data  # Delta count (500 - 300)
     assert str(300).encode() not in response.data  # Revoked transaction count
+
+
+@pytest.mark.usefixtures("test_item")
+def test_revoked_stockin_price_restoration(client, test_user, regular_user):
+    """Test that when a stock-in with a new price is revoked, the original average price is restored"""
+    with app.app_context():
+        # Create a test warehouse
+        user_warehouse = Warehouse(name="User Price Test Warehouse", owner=regular_user)
+        db.session.add(user_warehouse)
+        db.session.flush()
+
+        # Get a test SKU
+        sku = ItemSKU.query.first()
+
+        # First stock-in with initial price
+        initial_price = 50.00
+        initial_stockin_receipt = Receipt(
+            operator=regular_user,
+            warehouse=user_warehouse,
+            type=ReceiptType.STOCKIN,
+            refcode="INITIAL-PRICE-STOCKIN",
+            date=datetime.now(),
+        )
+        db.session.add(initial_stockin_receipt)
+        db.session.flush()
+
+        # Add transaction for initial stock with initial price
+        initial_transaction = Transaction(
+            itemSKU=sku,
+            count=10,  # Add initial stock
+            price=initial_price,
+            receipt=initial_stockin_receipt,
+        )
+        db.session.add(initial_transaction)
+        db.session.commit()
+
+        # Update warehouse inventory
+        initial_stockin_receipt.update_warehouse_item_skus()
+
+        # Verify the initial price was set correctly
+        warehouse_item = (
+            db.session.query(WarehouseItemSKU)
+            .filter_by(warehouse_id=user_warehouse.id, itemSKU_id=sku.id)
+            .first()
+        )
+        assert warehouse_item.count == 10
+        assert warehouse_item.average_price == initial_price
+
+        # Second stock-in with a different price
+        new_price = 150.00
+        second_stockin_receipt = Receipt(
+            operator=regular_user,
+            warehouse=user_warehouse,
+            type=ReceiptType.STOCKIN,
+            refcode="NEW-PRICE-STOCKIN",
+            date=datetime.now(),
+        )
+        db.session.add(second_stockin_receipt)
+        db.session.flush()
+
+        # Add transaction for second stock with new price
+        second_transaction = Transaction(
+            itemSKU=sku,
+            count=10,  # Add more stock with new price
+            price=new_price,
+            receipt=second_stockin_receipt,
+        )
+        db.session.add(second_transaction)
+        db.session.commit()
+
+        # Update warehouse inventory
+        second_stockin_receipt.update_warehouse_item_skus()
+
+        # Calculate the expected average price after second stock-in
+        expected_average = (10 * initial_price + 10 * new_price) / 20
+
+        # Verify the average price was updated correctly
+        warehouse_item = (
+            db.session.query(WarehouseItemSKU)
+            .filter_by(warehouse_id=user_warehouse.id, itemSKU_id=sku.id)
+            .first()
+        )
+        assert warehouse_item.count == 20
+        assert abs(warehouse_item.average_price - expected_average) < 0.01
+
+        # Store receipt ID for revocation
+        receipt_id_to_revoke = second_stockin_receipt.id
+
+    # Login as regular user
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+
+    # Revoke the second receipt using the API
+    response = client.post(
+        f"/receipt/{receipt_id_to_revoke}/revoke",
+        data={"reason": "Testing price restoration"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert "单据已成功撤销".encode() in response.data
+
+    # Verify that the stock is back to initial level and price is restored
+    with app.app_context():
+        warehouse_item = (
+            db.session.query(WarehouseItemSKU)
+            .filter_by(warehouse_id=user_warehouse.id, itemSKU_id=sku.id)
+            .first()
+        )
+        # Stock should be back to initial level (10)
+        assert warehouse_item.count == 10
+        # Price should be restored to initial price
+        assert abs(warehouse_item.average_price - initial_price) < 0.01
