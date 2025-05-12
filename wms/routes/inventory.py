@@ -328,6 +328,24 @@ def stockout():
             for sku in skus
         ]
 
+        # Check if there's a pre-filled item from the quick stock out button
+        item_id = request.args.get("item_id", type=int)
+        if item_id and request.method == "GET":
+            # Find the selected item in our list of items
+            selected_item = next((item for item in items if item[0] == item_id), None)
+            if selected_item:
+                # Pre-fill the first item in the form
+                if form.items[0].item_id.data is None:  # Only pre-fill if empty
+                    form.items[0].item_id.data = selected_item[1]  # Set the item name
+                    form.items[0].item_sku_id.data = str(
+                        selected_item[0]
+                    )  # Set the hidden ID
+                    form.items[0].stock_count.data = selected_item[
+                        3
+                    ]  # Set the stock count
+                    form.items[0].price.data = selected_item[2]  # Set the price
+                    form.items[0].quantity.data = 1  # Default quantity to 1
+
     # Create dictionary for item details
     items_dict = {
         id: {"name": name, "price": price, "count": count}

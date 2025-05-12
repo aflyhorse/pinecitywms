@@ -228,6 +228,117 @@ def test_inventory(auth_client, test_warehouse, test_item):
     assert response.status_code == 200
 
 
+@pytest.mark.usefixtures("test_item")
+def test_quick_stockout_button(auth_client, test_warehouse):
+    """Test the quick stockout button in the inventory page"""
+    # Get the item details and ID within the app context
+    with app.app_context():
+        sku = ItemSKU.query.first()
+        item_name = sku.item.name
+        brand = sku.brand
+        spec = sku.spec
+        sku_id = sku.id
+        # Generate the expected display name that will be shown in the form
+        expected_item_text = f"{item_name} - {brand} - {spec}"
+
+    # Add inventory
+    response = auth_client.post(
+        "/stockin",
+        data={
+            "refcode": "QUICK-OUT-TEST-001",
+            "warehouse": test_warehouse,
+            "items-0-item_id": str(sku_id),
+            "items-0-quantity": "30",
+            "items-0-price": "80.00",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    # Access inventory page to verify the quick stockout button exists
+    response = auth_client.get(f"/inventory?warehouse={test_warehouse}")
+    assert response.status_code == 200
+    assert "快捷出库".encode() in response.data
+
+    # Get the stockout page with the item_id parameter (simulating clicking the quick stockout button)
+    response = auth_client.get(f"/stockout?warehouse={test_warehouse}&item_id={sku_id}")
+    assert response.status_code == 200
+
+    # Verify that the form has been pre-filled with the selected item
+    assert expected_item_text.encode() in response.data
+
+    # Check for form field values (can't directly check hidden fields, but can check visible elements)
+    html_content = response.data.decode("utf-8")
+    assert (
+        f'value="{expected_item_text}"' in html_content
+    )  # Check item name is pre-filled
+    assert 'value="1"' in html_content  # Check the default quantity is 1
+
+
+@pytest.mark.usefixtures("test_item")
+def test_quick_stockout_complete_flow(auth_client, test_warehouse, test_customer):
+    """Test the complete flow from quick stockout button to completed stockout"""
+    # Get the item details and ID within the app context
+    initial_count = 40
+
+    with app.app_context():
+        sku = ItemSKU.query.first()
+        item_name = sku.item.name
+        brand = sku.brand
+        spec = sku.spec
+        sku_id = sku.id
+        # Generate the expected display name that will be shown in the form
+        expected_item_text = f"{item_name} - {brand} - {spec}"
+
+    # Add inventory
+    response = auth_client.post(
+        "/stockin",
+        data={
+            "refcode": "QUICK-OUT-FLOW-001",
+            "warehouse": test_warehouse,
+            "items-0-item_id": str(sku_id),
+            "items-0-quantity": str(initial_count),
+            "items-0-price": "90.00",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    # Simulate clicking the quick stockout button by visiting the stockout page with item_id
+    response = auth_client.get(f"/stockout?warehouse={test_warehouse}&item_id={sku_id}")
+    assert response.status_code == 200
+
+    # Now submit the stockout form with the pre-filled item
+    # We'll use 5 as the quantity to stockout
+    stockout_quantity = 5
+    response = auth_client.post(
+        "/stockout",
+        data={
+            "warehouse": test_warehouse,
+            "area": test_customer["area"],
+            "department": test_customer["department"],
+            "location": "快捷出库测试位置",
+            "items-0-item_id": expected_item_text,  # Use the display text
+            "items-0-item_sku_id": str(sku_id),  # The hidden field with actual ID
+            "items-0-quantity": str(stockout_quantity),
+            "items-0-price": "90.00",  # Use same price as stock in
+            "items-0-stock_count": str(initial_count),  # Current stock count
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert "出库成功".encode() in response.data
+
+    # Verify inventory was reduced
+    with app.app_context():
+        warehouse = db.session.get(Warehouse, test_warehouse)
+        warehouse_item = next(
+            (item for item in warehouse.item_skus if item.itemSKU_id == sku_id), None
+        )
+        assert warehouse_item is not None
+        assert warehouse_item.count == initial_count - stockout_quantity
+
+
 def test_inventory_access_control(client, regular_user, regular_warehouse):
     # Login as regular user
     client.post(

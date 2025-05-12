@@ -3,93 +3,107 @@
 {% from 'bootstrap5/form.html' import render_form %}
 {% from 'bootstrap5/pagination.html' import render_pagination %}
 {% block content %}
-    <div class="container p-5 my-5">
-        <div class="d-flex justify-content-between mb-3">
-            <div>
-                {% if current_user.is_admin %}<a href="{{ url_for('stockin') }}" class="btn btn-primary me-2">入库</a>{% endif %}
-                <a href="{{ url_for('stockout') }}" class="btn btn-danger me-2">出库</a>
-                <a href="{{ url_for('batch_takestock') }}" class="btn btn-warning">盘库</a>
-            </div>
-            <div>
-                <a href="{{ url_for('inventory_export', warehouse=selected_warehouse.id if selected_warehouse else '', name=itemSearchForm.name.data, brand=itemSearchForm.brand.data, spec=itemSearchForm.spec.data) }}" class="btn btn-success">
-                    <i class="bi bi-file-earmark-excel"></i> 导出
-                </a>
-            </div>
+<div class="container p-5 my-5">
+    <div class="d-flex justify-content-between mb-3">
+        <div>
+            {% if current_user.is_admin %}<a href="{{ url_for('stockin') }}" class="btn btn-primary me-2">入库</a>{% endif
+            %}
+            <a href="{{ url_for('stockout') }}" class="btn btn-danger me-2">出库</a>
+            <a href="{{ url_for('batch_takestock') }}" class="btn btn-warning">盘库</a>
         </div>
-        <div class="card mb-4">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div class="d-flex align-items-center">
-                        <form method="get" class="d-flex align-items-center">
-                            <select name="warehouse" class="form-select me-2" onchange="this.form.submit()">
-                                {% for warehouse in warehouses %}
-                                    <option value="{{ warehouse.id }}"
-                                            {% if warehouse == selected_warehouse %}selected{% endif %}>{{ warehouse.name }}</option>
-                                {% endfor %}
-                            </select>
-                            <div class="form-check ms-2" style="white-space: nowrap;">
-                                <input class="form-check-input" type="checkbox" name="only_available" id="only_available" 
-                                    {% if show_only_available %}checked{% endif %}
-                                    onchange="this.form.submit()">
-                                <label class="form-check-label" for="only_available">
-                                    仅显示剩余库存
-                                </label>
-                            </div>
-                            <!-- Preserve query parameters except page -->
-                            <input type="hidden" name="page" value="1">
-                            {% if itemSearchForm.name.data %}<input type="hidden" name="name" value="{{ itemSearchForm.name.data }}">{% endif %}
-                            {% if itemSearchForm.brand.data %}<input type="hidden" name="brand" value="{{ itemSearchForm.brand.data }}">{% endif %}
-                            {% if itemSearchForm.spec.data %}<input type="hidden" name="spec" value="{{ itemSearchForm.spec.data }}">{% endif %}
-                        </form>
-                    </div>
-                    <div>{{ render_form(itemSearchForm, form_type="inline") }}</div>
-                </div>
-            </div>
-            <div class="card-body">
-                {% if pagination %}
-                    <div class="mb-3">共 {{ pagination.total }} 项库存记录</div>
-                    {{ render_pagination(pagination,
-                                        warehouse=selected_warehouse.id,
-                                        name=itemSearchForm.name.data,
-                                        brand=itemSearchForm.brand.data,
-                                        spec=itemSearchForm.spec.data) }}
-                {% endif %}
-                <table class="table table-hover table-bordered">
-                    <thead>
-                        <tr>
-                            <th>物品</th>
-                            <th>品牌</th>
-                            <th>规格</th>
-                            <th>数量</th>
-                            <th>均价</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% set ns = namespace(prev_item=None) %}
-                        {% for item in warehouse_items.get(selected_warehouse, []) %}
-                            {% if ns.prev_item != item.itemSKU.item.name %}
-                                {% set ns.prev_item = item.itemSKU.item.name %}
-                                {% set ns.count = warehouse_items.get(selected_warehouse, []) | selectattr('itemSKU.item.name', 'equalto', item.itemSKU.item.name) | list | length %}
-                                <tr>
-                                    <td rowspan="{{ ns.count }}">{{ item.itemSKU.item.name }}</td>
-                                    <td>{{ item.itemSKU.brand }}</td>
-                                    <td>{{ item.itemSKU.spec }}</td>
-                                    <td>{{ item.count }}</td>
-                                    <td>¥{{ "%.2f"|format(item.average_price) }}</td>
-                                </tr>
-                            {% else %}
-                                <tr>
-                                    <td>{{ item.itemSKU.brand }}</td>
-                                    <td>{{ item.itemSKU.spec }}</td>
-                                    <td>{{ item.count }}</td>
-                                    <td>¥{{ "%.2f"|format(item.average_price) }}</td>
-                                </tr>
-                            {% endif %}
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% if pagination %}{{ render_pagination(pagination) }}{% endif %}
-            </div>
+        <div>
+            <a href="{{ url_for('inventory_export', warehouse=selected_warehouse.id if selected_warehouse else '', name=itemSearchForm.name.data, brand=itemSearchForm.brand.data, spec=itemSearchForm.spec.data) }}"
+                class="btn btn-success">
+                <i class="bi bi-file-earmark-excel"></i> 导出
+            </a>
         </div>
     </div>
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <form method="get" class="d-flex align-items-center">
+                        <select name="warehouse" class="form-select me-2" onchange="this.form.submit()">
+                            {% for warehouse in warehouses %}
+                            <option value="{{ warehouse.id }}" {% if warehouse==selected_warehouse %}selected{% endif
+                                %}>{{ warehouse.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-check ms-2" style="white-space: nowrap;">
+                            <input class="form-check-input" type="checkbox" name="only_available" id="only_available" {%
+                                if show_only_available %}checked{% endif %} onchange="this.form.submit()">
+                            <label class="form-check-label" for="only_available">
+                                仅显示剩余库存
+                            </label>
+                        </div>
+                        <!-- Preserve query parameters except page -->
+                        <input type="hidden" name="page" value="1">
+                        {% if itemSearchForm.name.data %}<input type="hidden" name="name"
+                            value="{{ itemSearchForm.name.data }}">{% endif %}
+                        {% if itemSearchForm.brand.data %}<input type="hidden" name="brand"
+                            value="{{ itemSearchForm.brand.data }}">{% endif %}
+                        {% if itemSearchForm.spec.data %}<input type="hidden" name="spec"
+                            value="{{ itemSearchForm.spec.data }}">{% endif %}
+                    </form>
+                </div>
+                <div>{{ render_form(itemSearchForm, form_type="inline") }}</div>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if pagination %}
+            <div class="mb-3">共 {{ pagination.total }} 项库存记录</div>
+            {{ render_pagination(pagination,
+            warehouse=selected_warehouse.id,
+            name=itemSearchForm.name.data,
+            brand=itemSearchForm.brand.data,
+            spec=itemSearchForm.spec.data) }}
+            {% endif %}
+            <table class="table table-hover table-bordered">
+                <thead>
+                    <tr>
+                        <th>物品</th>
+                        <th>品牌</th>
+                        <th>规格</th>
+                        <th>数量</th>
+                        <th>均价</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set ns = namespace(prev_item=None) %}
+                    {% for item in warehouse_items.get(selected_warehouse, []) %}
+                    {% if ns.prev_item != item.itemSKU.item.name %}
+                    {% set ns.prev_item = item.itemSKU.item.name %}
+                    {% set ns.count = warehouse_items.get(selected_warehouse, []) | selectattr('itemSKU.item.name',
+                    'equalto', item.itemSKU.item.name) | list | length %}
+                    <tr>
+                        <td rowspan="{{ ns.count }}">{{ item.itemSKU.item.name }}</td>
+                        <td>{{ item.itemSKU.brand }}</td>
+                        <td>{{ item.itemSKU.spec }}</td>
+                        <td>{{ item.count }}</td>
+                        <td>¥{{ "%.2f"|format(item.average_price) }}</td>
+                        <td>
+                            <a href="{{ url_for('stockout', warehouse=selected_warehouse.id, item_id=item.itemSKU.id) }}"
+                                class="btn btn-sm btn-outline-primary">快捷出库</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td>{{ item.itemSKU.brand }}</td>
+                        <td>{{ item.itemSKU.spec }}</td>
+                        <td>{{ item.count }}</td>
+                        <td>¥{{ "%.2f"|format(item.average_price) }}</td>
+                        <td>
+                            <a href="{{ url_for('stockout', warehouse=selected_warehouse.id, item_id=item.itemSKU.id) }}"
+                                class="btn btn-sm btn-outline-primary">快捷出库</a>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% if pagination %}{{ render_pagination(pagination) }}{% endif %}
+        </div>
+    </div>
+</div>
 {% endblock content %}
