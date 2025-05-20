@@ -103,8 +103,24 @@ class StockOutItemForm(FlaskForm):
 
 class StockOutForm(FlaskForm):
     warehouse = SelectField("仓库", coerce=int, validators=[InputRequired()])
-    area = SelectField("区域", coerce=int, validators=[InputRequired()])
-    department = SelectField("部门", coerce=int, validators=[InputRequired()])
+    area = SelectField(
+        "区域",
+        coerce=int,
+        validators=[InputRequired()],
+        render_kw={
+            "data-placeholder": "请选择区域",
+            "class": "select-with-placeholder",
+        },
+    )
+    department = SelectField(
+        "部门",
+        coerce=int,
+        validators=[InputRequired()],
+        render_kw={
+            "data-placeholder": "请选择部门",
+            "class": "select-with-placeholder",
+        },
+    )
     location = StringField(
         "具体地点",
         validators=[InputRequired(), Length(1, 30)],

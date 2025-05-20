@@ -10,6 +10,17 @@
             border-color: #ced4da;
             opacity: 0.8;
         }
+        
+        /* Style for select placeholders */
+        select option[disabled]:first-child {
+            color: #6c757d;
+        }
+        .select-with-placeholder:invalid {
+            color: #6c757d; /* Grey color for the placeholder text */
+        }
+        .select-with-placeholder option {
+            color: #212529; /* Normal text color for actual options */
+        }
     </style>
     <div class="container p-5 my-5 border">
         <h2>出库</h2>
@@ -53,6 +64,19 @@
     {{ super() }}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Handle placeholder for select fields
+            const selects = document.querySelectorAll('.select-with-placeholder');
+            selects.forEach(select => {
+                const placeholder = select.getAttribute('data-placeholder');
+                if (placeholder) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = placeholder;
+                    option.selected = true;
+                    option.disabled = true;
+                    select.prepend(option);
+                }
+            });
             const addItemButton = document.getElementById('add-item');
             const itemsDiv = document.getElementById('items');
             const warehouseSelect = document.querySelector('[name="warehouse"]');
