@@ -165,11 +165,14 @@ class Receipt(db.Model):
                         dec_total_count = Decimal(str(total_count))
                         dec_wh_count = Decimal(str(warehouse_item_sku.count))
                         dec_trans_count = Decimal(str(transaction.count))
-                        warehouse_item_sku.average_price = (
-                            dec_wh_count
-                            * Decimal(str(warehouse_item_sku.average_price))
-                            + dec_trans_count * transaction.price
-                        ) / dec_total_count
+                        warehouse_item_sku.average_price = float(
+                            (
+                                dec_wh_count
+                                * Decimal(str(warehouse_item_sku.average_price))
+                                + dec_trans_count * transaction.price
+                            )
+                            / dec_total_count
+                        )
                     else:
                         warehouse_item_sku.average_price = 0
                     warehouse_item_sku.count = total_count

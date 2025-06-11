@@ -6,6 +6,7 @@ from wms.models import (
     Receipt,
     ReceiptType,
     Warehouse,
+    WarehouseItemSKU,
     Area,
     Department,
     Transaction,
@@ -387,24 +388,54 @@ def statistics_usage():
         .all()
     )
 
-    # Query base - aggregate transactions by ItemSKU
-    query = (
-        db.session.query(
-            ItemSKU,
-            Item,
-            func.sum(Transaction.count * -1).label("total_usage"),
+    # Query base - aggregate transactions by ItemSKU and get average price from warehouse
+    # We need to join with WarehouseItemSKU to get the current average price
+    if warehouse_id:
+        # For specific warehouse, get the average price from that warehouse
+        query = (
+            db.session.query(
+                ItemSKU,
+                Item,
+                func.sum(Transaction.count * -1).label("total_usage"),
+                WarehouseItemSKU.average_price.label("average_price"),
+            )
+            .join(Transaction)
+            .join(Receipt)
+            .join(Item)
+            .outerjoin(
+                WarehouseItemSKU,
+                (WarehouseItemSKU.itemSKU_id == ItemSKU.id)
+                & (WarehouseItemSKU.warehouse_id == warehouse_id),
+            )
+            .filter(Receipt.type == ReceiptType.STOCKOUT)
+            .filter(Receipt.revoked.is_(False))
+            .filter(
+                Transaction.count < 0
+            )  # Only include negative counts which are real stockouts
+            .group_by(ItemSKU.id, Item.id, WarehouseItemSKU.average_price)
+            .order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
         )
-        .join(Transaction)
-        .join(Receipt)
-        .join(Item)
-        .filter(Receipt.type == ReceiptType.STOCKOUT)
-        .filter(Receipt.revoked.is_(False))
-        .filter(
-            Transaction.count < 0
-        )  # Only include negative counts which are real stockouts
-        .group_by(ItemSKU.id, Item.id)
-        .order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
-    )
+    else:
+        # For all warehouses, calculate weighted average price
+        query = (
+            db.session.query(
+                ItemSKU,
+                Item,
+                func.sum(Transaction.count * -1).label("total_usage"),
+                func.avg(WarehouseItemSKU.average_price).label("average_price"),
+            )
+            .join(Transaction)
+            .join(Receipt)
+            .join(Item)
+            .outerjoin(WarehouseItemSKU, WarehouseItemSKU.itemSKU_id == ItemSKU.id)
+            .filter(Receipt.type == ReceiptType.STOCKOUT)
+            .filter(Receipt.revoked.is_(False))
+            .filter(
+                Transaction.count < 0
+            )  # Only include negative counts which are real stockouts
+            .group_by(ItemSKU.id, Item.id)
+            .order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
+        )
 
     # Filter by warehouse access if not admin
     if not current_user.is_admin:
@@ -443,6 +474,12 @@ def statistics_usage():
     # Get results
     usage_data = query.all()
 
+    # Calculate totals
+    total_quantity = sum(data.total_usage for data in usage_data)
+    total_value = sum(
+        (data.total_usage * (data.average_price or 0)) for data in usage_data
+    )
+
     return render_template(
         "statistics_usage.html.jinja",
         warehouses=warehouses,
@@ -456,6 +493,8 @@ def statistics_usage():
         item_name=item_name,
         brand=brand,
         spec=spec,
+        total_quantity=total_quantity,
+        total_value=total_value,
     )
 
 

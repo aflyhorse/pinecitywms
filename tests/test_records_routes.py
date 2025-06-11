@@ -1756,11 +1756,11 @@ def test_revoked_transactions_excluded_from_usage_statistics(
         revoked_receipt.note = "Manual test revocation note for usage statistics"
 
         # Create a counter receipt to reverse the effects (similar to what the revoke endpoint does)
-        # But mark it as STOCKIN type to avoid it being counted in usage statistics
+        # Use the same type as the original receipt (as per the real implementation)
         counter_receipt = Receipt(
             operator_id=1,
             warehouse_id=test_warehouse,
-            type=ReceiptType.STOCKIN,  # Use STOCKIN instead of STOCKOUT so it won't be counted in the statistics
+            type=revoked_receipt.type,  # Same type as original (STOCKOUT)
             note="Test revocation counter receipt for usage statistics",
         )
         db.session.add(counter_receipt)
