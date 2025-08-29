@@ -81,6 +81,34 @@ def records():
                 )
             )
 
+    # Auto-fill item name and sku description based on item_id or sku_id
+    current_item = None
+    current_sku = None
+    warehouse_stocks = []
+
+    if item_id:
+        current_item = db.session.get(Item, item_id)
+        if current_item and not item_name:
+            item_name = current_item.name
+
+    if sku_id:
+        current_sku = db.session.get(ItemSKU, sku_id)
+        if current_sku:
+            current_item = current_sku.item
+            if not item_name:
+                item_name = current_item.name
+            if not sku_desc:
+                sku_desc = current_sku.spec
+
+            # Get warehouse stock information for this SKU
+            warehouse_stocks = (
+                db.session.query(WarehouseItemSKU, Warehouse)
+                .join(Warehouse)
+                .filter(WarehouseItemSKU.itemSKU_id == sku_id)
+                .filter(WarehouseItemSKU.count > 0)
+                .all()
+            )
+
     # Query base - join necessary relationships
     query = (
         db.session.query(Transaction)
@@ -184,6 +212,9 @@ def records():
         item_id=item_id,
         sku_id=sku_id,
         item_names=item_names,
+        current_item=current_item,
+        current_sku=current_sku,
+        warehouse_stocks=warehouse_stocks,
         request=request,
     )
 

@@ -81,6 +81,37 @@
                 </div>
             </form>
         </div>
+
+        {% if current_sku and warehouse_stocks %}
+        <div class="card-body border-top">
+            <h5 class="mb-3">
+                <span class="text-primary">{{ current_item.name }}</span>
+                <span class="text-muted">{{ current_sku.brand }} - {{ current_sku.spec }}</span>
+                库存情况
+            </h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>仓库</th>
+                            <th class="text-end">剩余数量</th>
+                            <th class="text-end">平均价格</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for warehouse_item, warehouse in warehouse_stocks %}
+                        <tr>
+                            <td>{{ warehouse.name }}</td>
+                            <td class="text-end">{{ warehouse_item.count }}</td>
+                            <td class="text-end">¥{{ "%.2f"|format(warehouse_item.average_price) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="card-body">
             <table class="table table-hover">
                 <thead>

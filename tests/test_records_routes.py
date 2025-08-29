@@ -2061,3 +2061,91 @@ def test_records_precision_search_parameters_preserved(auth_client, test_warehou
 
     content = response.data.decode("utf-8")
     assert f"sku_id={sku_id}" in content or "Spec Zeta" in content
+
+
+@pytest.mark.usefixtures("test_item")
+def test_records_auto_fill_item_name_with_item_id(auth_client, test_warehouse):
+    """Test that item_name is auto-filled when searching with item_id"""
+    with app.app_context():
+        item = Item(name="Auto Fill Test Item")
+        db.session.add(item)
+        db.session.flush()
+
+        sku = ItemSKU(item=item, brand="Auto Brand", spec="Auto Spec")
+        db.session.add(sku)
+        db.session.commit()
+
+        item_id = item.id
+
+    # Test that item_name is auto-filled in the search form
+    response = auth_client.get(f"/records?item_id={item_id}&type=all")
+    assert response.status_code == 200
+
+    content = response.data.decode("utf-8")
+
+    # Check that the item name appears in the search input field
+    assert 'value="Auto Fill Test Item"' in content
+
+
+@pytest.mark.usefixtures("test_item")
+def test_records_auto_fill_sku_desc_with_sku_id(auth_client, test_warehouse):
+    """Test that sku_desc is auto-filled when searching with sku_id"""
+    with app.app_context():
+        item = Item(name="SKU Fill Test Item")
+        db.session.add(item)
+        db.session.flush()
+
+        sku = ItemSKU(item=item, brand="SKU Brand", spec="SKU Spec")
+        db.session.add(sku)
+        db.session.commit()
+
+        sku_id = sku.id
+
+    # Test that sku_desc is auto-filled in the search form
+    response = auth_client.get(f"/records?sku_id={sku_id}&type=all")
+    assert response.status_code == 200
+
+    content = response.data.decode("utf-8")
+
+    # Check that both item name and sku description are auto-filled
+    assert 'value="SKU Fill Test Item"' in content
+    assert 'value="SKU Spec"' in content
+
+
+@pytest.mark.usefixtures("test_item")
+def test_records_warehouse_stock_display_with_sku_id(auth_client, test_warehouse):
+    """Test that warehouse stock information is displayed when searching with sku_id"""
+    with app.app_context():
+        # Create test item and SKU
+        item = Item(name="Stock Display Test Item")
+        db.session.add(item)
+        db.session.flush()
+
+        sku = ItemSKU(item=item, brand="Stock Brand", spec="Stock Spec")
+        db.session.add(sku)
+        db.session.flush()
+
+        # Create warehouse stock entry
+        warehouse_stock = WarehouseItemSKU(
+            warehouse_id=test_warehouse,
+            itemSKU_id=sku.id,
+            count=50,
+            average_price=25.50,
+        )
+        db.session.add(warehouse_stock)
+        db.session.commit()
+
+        sku_id = sku.id
+
+    # Test that warehouse stock information is displayed
+    response = auth_client.get(f"/records?sku_id={sku_id}&type=all")
+    assert response.status_code == 200
+
+    content = response.data.decode("utf-8")
+
+    # Check that the stock table is displayed
+    assert "库存情况" in content
+    assert "Stock Display Test Item" in content
+    assert "Stock Brand - Stock Spec" in content
+    assert "50" in content  # stock count
+    assert "25.50" in content  # average price
