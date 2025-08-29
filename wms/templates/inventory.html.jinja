@@ -77,9 +77,9 @@
                     {% set ns.count = warehouse_items.get(selected_warehouse, []) | selectattr('itemSKU.item.name',
                     'equalto', item.itemSKU.item.name) | list | length %}
                     <tr>
-                        <td rowspan="{{ ns.count }}">{{ item.itemSKU.item.name }}</td>
+                        <td rowspan="{{ ns.count }}"><a href="{{ url_for('records', item_id=item.itemSKU.item.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ item.itemSKU.item.name }}</a></td>
                         <td>{{ item.itemSKU.brand }}</td>
-                        <td>{{ item.itemSKU.spec }}</td>
+                        <td><a href="{{ url_for('records', sku_id=item.itemSKU.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ item.itemSKU.spec }}</a></td>
                         <td>{{ item.count }}</td>
                         <td>¥{{ "%.2f"|format(item.average_price) }}</td>
                         <td>
@@ -90,7 +90,7 @@
                     {% else %}
                     <tr>
                         <td>{{ item.itemSKU.brand }}</td>
-                        <td>{{ item.itemSKU.spec }}</td>
+                        <td><a href="{{ url_for('records', sku_id=item.itemSKU.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ item.itemSKU.spec }}</a></td>
                         <td>{{ item.count }}</td>
                         <td>¥{{ "%.2f"|format(item.average_price) }}</td>
                         <td>

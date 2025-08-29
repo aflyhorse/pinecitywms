@@ -78,9 +78,9 @@
                     <tbody>
                         {% for itemsku, item, total_usage, average_price in usage_data %}
                         <tr>
-                            <td>{{ item.name }}</td>
+                            <td><a href="{{ url_for('records', item_id=item.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ item.name }}</a></td>
                             <td>{{ itemsku.brand }}</td>
-                            <td>{{ itemsku.spec }}</td>
+                            <td><a href="{{ url_for('records', sku_id=itemsku.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ itemsku.spec }}</a></td>
                             <td class="text-end">{{ total_usage }}</td>
                             <td class="text-end">¥{{ "%.2f"|format(average_price or 0) }}</td>
                             <td class="text-end">¥{{ "%.2f"|format(total_usage * (average_price or 0)) }}</td>

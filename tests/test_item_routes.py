@@ -1,6 +1,6 @@
 import pytest
-from wms.models import Item
-from wms import app
+from wms.models import Item, ItemSKU
+from wms import app, db
 
 
 @pytest.mark.usefixtures("test_item")
@@ -112,3 +112,77 @@ def test_duplicate_sku_validation(auth_client):
         assert len(item.skus) == 1
         assert item.skus[0].brand == "Duplicate Brand"
         assert item.skus[0].spec == "Duplicate Spec"
+
+
+@pytest.mark.usefixtures("test_item")
+def test_toggle_disabled(auth_client):
+    """Test the toggle_disabled functionality for ItemSKU"""
+    # Create a test item and SKU
+    with app.app_context():
+        # Create a new item for testing
+        test_item = Item(name="Toggle Test Item")
+        db.session.add(test_item)
+        db.session.flush()
+
+        # Create a SKU for the item
+        test_sku = ItemSKU(
+            item_id=test_item.id,
+            brand="Toggle Brand",
+            spec="Toggle Spec",
+            disabled=False,  # Initially enabled
+        )
+        db.session.add(test_sku)
+        db.session.commit()
+
+        # Get the SKU ID for testing
+        sku_id = test_sku.id
+
+    # Test disabling the SKU
+    response = auth_client.post(f"/item/{sku_id}/toggle_disabled")
+    assert response.status_code == 200
+
+    json_data = response.get_json()
+    assert json_data["success"] is True
+    assert json_data["disabled"] is True
+    assert "禁用" in json_data["message"]
+
+    # Verify in database that the SKU is disabled
+    with app.app_context():
+        sku = db.session.get(ItemSKU, sku_id)
+        assert sku.disabled is True
+
+    # Test enabling the SKU again
+    response = auth_client.post(f"/item/{sku_id}/toggle_disabled")
+    assert response.status_code == 200
+
+    json_data = response.get_json()
+    assert json_data["success"] is True
+    assert json_data["disabled"] is False
+    assert "启用" in json_data["message"]
+
+    # Verify in database that the SKU is enabled
+    with app.app_context():
+        sku = db.session.get(ItemSKU, sku_id)
+        assert sku.disabled is False
+
+    # Test with non-existent SKU ID
+    response = auth_client.post("/item/99999/toggle_disabled")
+    assert response.status_code == 404
+
+    json_data = response.get_json()
+    assert json_data["success"] is False
+    assert "物品不存在" in json_data["message"]
+
+
+def test_toggle_disabled_non_admin_access(client, regular_user):
+    """Test that regular users cannot access toggle_disabled"""
+    # Login as regular user
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+
+    # Try to toggle disabled status
+    response = client.post("/item/1/toggle_disabled", follow_redirects=True)
+    assert response.status_code == 200
+    assert b"Unauthorized Access" in response.data

@@ -53,14 +53,14 @@
                             {% set ns.rowspan = pagination.items|selectattr('item.name', 'equalto',
                             itemsku.item.name)|list|length %}
                             {% set ns.prev_item = itemsku.item.name %}
-                            <td rowspan="{{ ns.rowspan }}">{{ itemsku.item.name }}</td>
+                            <td rowspan="{{ ns.rowspan }}"><a href="{{ url_for('records', item_id=itemsku.item.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ itemsku.item.name }}</a></td>
                             {% endif %}
                             <td class="{% if itemsku.disabled %}text-decoration-line-through text-secondary{% endif %}">
                                 {{ '%04d' % itemsku.id }}</td>
                             <td class="{% if itemsku.disabled %}text-decoration-line-through text-secondary{% endif %}">
                                 {{ itemsku.brand }}</td>
                             <td class="{% if itemsku.disabled %}text-decoration-line-through text-secondary{% endif %}">
-                                {{ itemsku.spec }}</td>
+                                <a href="{{ url_for('records', sku_id=itemsku.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ itemsku.spec }}</a></td>
                             <td class="text-end">
                                 <a href="#" class="toggle-disabled" data-id="{{ itemsku.id }}"
                                     data-status="{{ '1' if itemsku.disabled else '0' }}">

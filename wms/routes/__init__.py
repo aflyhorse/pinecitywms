@@ -1,4 +1,4 @@
-from flask import render_template
+from flask import redirect, url_for
 from flask_login import login_required
 from wms import app
 
@@ -12,4 +12,4 @@ __all__ = ["auth", "item", "inventory", "records", "batch"]
 @app.route("/")
 @login_required
 def index():
-    return render_template("index.html.jinja")
+    return redirect(url_for("inventory"))

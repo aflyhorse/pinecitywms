@@ -6,4 +6,5 @@ def test_index_requires_login(client):
 
 def test_index_authenticated(auth_client):
     response = auth_client.get("/")
-    assert response.status_code == 200
+    assert response.status_code == 302  # Now redirects to inventory
+    assert "/inventory" in response.location

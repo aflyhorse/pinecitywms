@@ -12,6 +12,7 @@
                     <div class="col-md-2">
                         <label class="form-label">记录类型</label>
                         <select name="type" class="form-select" onchange="this.form.submit()">
+                            <option value="all" {% if record_type=='all' %}selected{% endif %}>全部</option>
                             <option value="stockin" {% if record_type=='stockin' %}selected{% endif %}>入库</option>
                             <option value="stockout" {% if record_type=='stockout' %}selected{% endif %}>出库</option>
                             <option value="takestock" {% if record_type=='takestock' %}selected{% endif %}>盘点</option>
@@ -58,13 +59,14 @@
                         <input type="text" name="sku_desc" class="form-control" value="{{ sku_desc or '' }}"
                             placeholder="搜索品牌或规格">
                     </div>
-                    {% if record_type == 'stockin' %}
+                    {% if record_type == 'stockin' or record_type == 'all' %}
                     <div class="col-md-2">
-                        <label class="form-label">单号</label>
+                        <label class="form-label">{{ '入库单号' if record_type == 'stockin' else '单号' }}</label>
                         <input type="text" name="refcode" class="form-control" value="{{ refcode or '' }}"
                             placeholder="搜索单号">
                     </div>
-                    {% else %}
+                    {% endif %}
+                    {% if record_type == 'stockout' or record_type == 'takestock' or record_type == 'all' %}
                     <div class="col-md-2">
                         <label class="form-label">区域/部门/具体地点</label>
                         <input type="text" name="location_info" class="form-control" value="{{ location_info or '' }}"
@@ -83,21 +85,25 @@
             <table class="table table-hover">
                 <thead>
                     <tr>
+                        {% if record_type == 'all' %}<th>类型</th>{% endif %}
                         <th>日期</th>
                         <th>物品</th>
                         <th>品牌 - 规格</th>
                         <th>数量</th>
-                        <th>价格</th>
+                        {% if record_type != 'all' %}<th>价格</th>{% endif %}
                         <th>仓库</th>
                         {% if record_type == 'stockin' %}
                         <th>单号</th>
                         {% elif record_type == 'takestock' %}
                         <th>操作员</th>
-                        {% else %}
+                        {% elif record_type == 'stockout' %}
                         <th>操作员</th>
                         <th>区域</th>
                         <th>部门</th>
                         <th>具体地点</th>
+                        {% elif record_type == 'all' %}
+                        <th>部门</th>
+                        <th>其他信息</th>
                         {% endif %}
                         <th> </th>
                     </tr>
@@ -105,22 +111,43 @@
                 <tbody>
                     {% for transaction in pagination.items %}
                     <tr{% if transaction.receipt.revoked %} class="text-decoration-line-through" {% endif %}>
+                        {% if record_type == 'all' %}
+                        <td>
+                            {% if transaction.receipt.type.name == 'STOCKIN' %}入库
+                            {% elif transaction.receipt.type.name == 'STOCKOUT' %}出库
+                            {% elif transaction.receipt.type.name == 'TAKESTOCK' %}盘点
+                            {% endif %}
+                        </td>
+                        {% endif %}
                         <td>{{ transaction.receipt.date.strftime('%Y-%m-%d %H:%M') }}</td>
-                        <td>{{ transaction.itemSKU.item.name }}</td>
-                        <td>{{ transaction.itemSKU.brand }} - {{ transaction.itemSKU.spec }}</td>
+                        <td><a href="{{ url_for('records', item_id=transaction.itemSKU.item.id, type=record_type) }}" style="color: #0d6efd; text-decoration: none;">{{ transaction.itemSKU.item.name }}</a></td>
+                        <td><a href="{{ url_for('records', sku_id=transaction.itemSKU.id, type=record_type) }}" style="color: #0d6efd; text-decoration: none;">{{ transaction.itemSKU.brand }} - {{ transaction.itemSKU.spec }}</a></td>
                         <td>{{ transaction.count }}</td>
-                        <td>¥{{ "%.2f"|format(transaction.price) }}</td>
+                        {% if record_type != 'all' %}<td>¥{{ "%.2f"|format(transaction.price) }}</td>{% endif %}
                         <td>{{ transaction.receipt.warehouse.name }}</td>
+                        
                         {% if record_type == 'stockin' %}
                         <td>{{ transaction.receipt.refcode }}</td>
                         {% elif record_type == 'takestock' %}
                         <td>{{ transaction.receipt.operator.nickname }}</td>
-                        {% else %}
+                        {% elif record_type == 'stockout' %}
                         <td>{{ transaction.receipt.operator.nickname }}</td>
                         <td>{{ transaction.receipt.area.name if transaction.receipt.area else '' }}</td>
                         <td>{{ transaction.receipt.department.name if transaction.receipt.department else '' }}</td>
                         <td>{{ transaction.receipt.location }}</td>
+                        {% elif record_type == 'all' %}
+                        <td>{{ transaction.receipt.department.name if transaction.receipt.department else '' }}</td>
+                        <td>
+                            {% if transaction.receipt.type.name == 'STOCKIN' %}
+                                {{ transaction.receipt.refcode }}
+                            {% elif transaction.receipt.type.name == 'STOCKOUT' %}
+                                {{ transaction.receipt.location }}
+                            {% elif transaction.receipt.type.name == 'TAKESTOCK' %}
+                                {{ transaction.receipt.note or '' }}
+                            {% endif %}
+                        </td>
                         {% endif %}
+                        
                         <td class="text-end">
                             <div class="d-inline-flex">
                                 <div style="width: 16px; text-align: center">
@@ -141,8 +168,8 @@
                                 </div>
                             </div>
                         </td>
-                        </tr>
-                        {% endfor %}
+                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
             {% if pagination %}
@@ -156,6 +183,8 @@
                 location_info=location_info,
                 item_name=item_name,
                 sku_desc=sku_desc,
+                item_id=item_id,
+                sku_id=sku_id,
                 args=request.args) }}
             </div>
             {% endif %}

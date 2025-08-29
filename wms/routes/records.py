@@ -34,8 +34,8 @@ def records():
 
     # Get filter parameters from request
     record_type = request.args.get(
-        "type", "stockout"
-    )  # stockin, stockout or takestock (default to stockout)
+        "type", "all"
+    )  # stockin, stockout, takestock or all (default to all)
     warehouse_id = request.args.get("warehouse")
     start_date = request.args.get("start_date")
     end_date = request.args.get("end_date")
@@ -43,6 +43,8 @@ def records():
     location_info = request.args.get("location_info")
     item_name = request.args.get("item_name")
     sku_desc = request.args.get("sku_desc")
+    item_id = request.args.get("item_id", type=int)
+    sku_id = request.args.get("sku_id", type=int)
     page = request.args.get("page", 1, type=int)
     per_page = 20
 
@@ -105,21 +107,24 @@ def records():
     # Apply filters
     if record_type == "stockin":
         query = query.filter(Receipt.type == ReceiptType.STOCKIN)
+    elif record_type == "stockout":
+        query = query.filter(Receipt.type == ReceiptType.STOCKOUT)
     elif record_type == "takestock":
         query = query.filter(Receipt.type == ReceiptType.TAKESTOCK)
-    else:
-        query = query.filter(Receipt.type == ReceiptType.STOCKOUT)
-        if location_info:
-            # Search area or department name if provided
-            query = (
-                query.outerjoin(Area)
-                .outerjoin(Department)
-                .filter(
-                    (Area.name.ilike(f"%{location_info}%"))
-                    | (Department.name.ilike(f"%{location_info}%"))
-                    | (Receipt.location.ilike(f"%{location_info}%"))
-                )
+    # If record_type == "all", don't filter by type - show all records
+
+    # Location info filter only applies to specific searches or all records
+    if location_info:
+        # Search area or department name if provided
+        query = (
+            query.outerjoin(Area)
+            .outerjoin(Department)
+            .filter(
+                (Area.name.ilike(f"%{location_info}%"))
+                | (Department.name.ilike(f"%{location_info}%"))
+                | (Receipt.location.ilike(f"%{location_info}%"))
             )
+        )
 
     if warehouse_id:
         # For non-admins, ensure they can only access their warehouse or public warehouses
@@ -141,7 +146,7 @@ def records():
         end_datetime = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S")
         query = query.filter(Receipt.date <= end_datetime)
 
-    if refcode and record_type == "stockin":
+    if refcode and (record_type == "stockin" or record_type == "all"):
         query = query.filter(Receipt.refcode.ilike(f"%{refcode}%"))
 
     # Add new filters for item name and SKU description
@@ -153,6 +158,13 @@ def records():
             (ItemSKU.brand.ilike(f"%{sku_desc}%"))
             | (ItemSKU.spec.ilike(f"%{sku_desc}%"))
         )
+
+    # Add precise filters for item_id and sku_id
+    if item_id:
+        query = query.filter(Item.id == item_id)
+
+    if sku_id:
+        query = query.filter(ItemSKU.id == sku_id)
 
     # Paginate results - now based on transactions
     pagination = query.paginate(page=page, per_page=per_page)
@@ -169,6 +181,8 @@ def records():
         location_info=location_info,
         item_name=item_name,
         sku_desc=sku_desc,
+        item_id=item_id,
+        sku_id=sku_id,
         item_names=item_names,
         request=request,
     )
