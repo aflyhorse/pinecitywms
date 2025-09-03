@@ -87,8 +87,16 @@ def item_create():
         ).scalar_one_or_none()
 
         if existing_sku:
-            flash("物品和对应型号已存在", "danger")
-            return render_template("item_create.html.jinja", form=form, items=items)
+            if existing_sku.disabled:
+                # Re-enable the disabled SKU instead of creating a new one
+                existing_sku.disabled = False
+                db.session.commit()
+                flash("对应型号已修改为启用", "success")
+                return redirect(url_for("item"))
+            else:
+                # SKU is already enabled
+                flash("物品和对应型号已存在", "danger")
+                return render_template("item_create.html.jinja", form=form, items=items)
 
         # Create new SKU for the item
         sku = ItemSKU(item_id=item.id, brand=form.brand.data, spec=form.spec.data)
