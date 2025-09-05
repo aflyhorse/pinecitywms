@@ -78,6 +78,8 @@ def records():
                     location_info=location_info,
                     item_name=item_name,
                     sku_desc=sku_desc,
+                    item_id=item_id,
+                    sku_id=sku_id,
                 )
             )
 
