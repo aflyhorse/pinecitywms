@@ -12,6 +12,7 @@ from wms.models import (
 from werkzeug.security import generate_password_hash
 from wms import app, db
 from datetime import datetime, timedelta
+import re
 
 
 @pytest.mark.usefixtures("test_item")
@@ -1972,8 +1973,12 @@ def test_records_precision_search_with_item_id(auth_client, test_warehouse):
     assert "Spec 1" in content
     assert "Spec 2" in content
 
-    # Should NOT find item2 transactions
-    assert "Test Item Beta" not in content
+    # Should NOT find item2 transactions, exclude option candidiates
+    non_option_content = re.sub(
+        r"<option[^>]*>.*?</option>", "", content, flags=re.DOTALL
+    )
+    pure_text = re.sub(r"<[^>]+>", "", non_option_content)
+    assert "Test Item Beta" not in pure_text
     assert "Brand B" not in content
 
 
