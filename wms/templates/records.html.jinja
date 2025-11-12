@@ -136,7 +136,7 @@
                         <th>部门</th>
                         <th>其他信息</th>
                         {% endif %}
-                        <th> </th>
+                        <th style="width: 60px; white-space: nowrap; text-align: right">操作</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -188,6 +188,12 @@
                                         {{ render_icon('info-circle') }}
                                     </span>
                                     {% endif %}
+                                </div>
+                                <div style="width: 16px; margin-left: 8px; text-align: center">
+                                    <a href="{{ url_for('stockout', warehouse=transaction.receipt.warehouse.id, item_id=transaction.itemSKU.id) }}"
+                                        data-bs-toggle="tooltip" data-bs-placement="left" title="快捷出库">
+                                        {{ render_icon('upload') }}
+                                    </a>
                                 </div>
                                 <div style="width: 16px; margin-left: 8px; text-align: center">
                                     {% if not transaction.receipt.revoked %}
