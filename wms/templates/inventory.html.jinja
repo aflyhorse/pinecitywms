@@ -2,6 +2,7 @@
 {% from "macros.jinja" import render_field %}
 {% from 'bootstrap5/form.html' import render_form %}
 {% from 'bootstrap5/pagination.html' import render_pagination %}
+{% from 'bootstrap5/utils.html' import render_icon %}
 {% block content %}
 <div class="container p-5 my-5">
     <div class="d-flex justify-content-between mb-3">
@@ -66,7 +67,7 @@
                         <th>规格</th>
                         <th>数量</th>
                         <th>均价</th>
-                        <th>操作</th>
+                        <th style="width: 1px; white-space: nowrap;">操作</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -82,9 +83,9 @@
                         <td><a href="{{ url_for('records', sku_id=item.itemSKU.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ item.itemSKU.spec }}</a></td>
                         <td>{{ item.count }}</td>
                         <td>¥{{ "%.2f"|format(item.average_price) }}</td>
-                        <td>
+                        <td class="text-center">
                             <a href="{{ url_for('stockout', warehouse=selected_warehouse.id, item_id=item.itemSKU.id) }}"
-                                class="btn btn-sm btn-outline-primary">快捷出库</a>
+                                data-bs-toggle="tooltip" data-bs-placement="right" title="快捷出库">{{ render_icon('upload') }}</a>
                         </td>
                     </tr>
                     {% else %}
@@ -93,9 +94,9 @@
                         <td><a href="{{ url_for('records', sku_id=item.itemSKU.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ item.itemSKU.spec }}</a></td>
                         <td>{{ item.count }}</td>
                         <td>¥{{ "%.2f"|format(item.average_price) }}</td>
-                        <td>
+                        <td class="text-center">
                             <a href="{{ url_for('stockout', warehouse=selected_warehouse.id, item_id=item.itemSKU.id) }}"
-                                class="btn btn-sm btn-outline-primary">快捷出库</a>
+                                data-bs-toggle="tooltip" data-bs-placement="right" title="快捷出库">{{ render_icon('upload') }}</a>
                         </td>
                     </tr>
                     {% endif %}
@@ -106,4 +107,14 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
 {% endblock content %}

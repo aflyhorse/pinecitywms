@@ -43,9 +43,9 @@
                 </div>
 
                 <datalist id="item-names">
-                    {% for item in item_names %}
-                    <option value="{{ item.name }}">
-                        {% endfor %}
+                    {% for name in item_names %}
+                    <option value="{{ name }}">{{ name }}</option>
+                    {% endfor %}
                 </datalist>
 
                 <div class="row g-3 align-items-end mt-2">
