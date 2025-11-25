@@ -119,6 +119,7 @@
                         {% if record_type == 'all' %}<th>类型</th>{% endif %}
                         <th>日期</th>
                         <th>物品</th>
+                        <th>物料编号</th>
                         <th>品牌 - 规格</th>
                         <th>数量</th>
                         {% if record_type != 'all' %}<th>价格</th>{% endif %}
@@ -152,6 +153,7 @@
                         {% endif %}
                         <td>{{ transaction.receipt.date.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td><a href="{{ url_for('records', item_id=transaction.itemSKU.item.id, type=record_type) }}" style="color: #0d6efd; text-decoration: none;">{{ transaction.itemSKU.item.name }}</a></td>
+                        <td>{{ transaction.itemSKU.id }}</td>
                         <td><a href="{{ url_for('records', sku_id=transaction.itemSKU.id, type=record_type) }}" style="color: #0d6efd; text-decoration: none;">{{ transaction.itemSKU.brand }} - {{ transaction.itemSKU.spec }}</a></td>
                         <td>{{ transaction.count }}</td>
                         {% if record_type != 'all' %}<td>¥{{ "%.2f"|format(transaction.price) }}</td>{% endif %}

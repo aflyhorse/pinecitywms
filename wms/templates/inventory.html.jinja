@@ -63,6 +63,7 @@
                 <thead>
                     <tr>
                         <th>物品</th>
+                        <th>物料编号</th>
                         <th>品牌</th>
                         <th>规格</th>
                         <th>数量</th>
@@ -79,6 +80,7 @@
                     'equalto', item.itemSKU.item.name) | list | length %}
                     <tr>
                         <td rowspan="{{ ns.count }}"><a href="{{ url_for('records', item_id=item.itemSKU.item.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ item.itemSKU.item.name }}</a></td>
+                        <td>{{ item.itemSKU.id }}</td>
                         <td>{{ item.itemSKU.brand }}</td>
                         <td><a href="{{ url_for('records', sku_id=item.itemSKU.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ item.itemSKU.spec }}</a></td>
                         <td>{{ item.count }}</td>
@@ -90,6 +92,7 @@
                     </tr>
                     {% else %}
                     <tr>
+                        <td>{{ item.itemSKU.id }}</td>
                         <td>{{ item.itemSKU.brand }}</td>
                         <td><a href="{{ url_for('records', sku_id=item.itemSKU.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ item.itemSKU.spec }}</a></td>
                         <td>{{ item.count }}</td>
