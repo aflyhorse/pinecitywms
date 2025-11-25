@@ -115,6 +115,7 @@ def inventory():
                     name=form.name.data,
                     brand=form.brand.data,
                     spec=form.spec.data,
+                    sku_id=form.sku_id.data,
                     only_available="on" if only_available else None,
                     page=1,  # Reset to page 1 when searching
                 )
@@ -124,6 +125,7 @@ def inventory():
         form.name.data = request.args.get("name", "")
         form.brand.data = request.args.get("brand", "")
         form.spec.data = request.args.get("spec", "")
+        form.sku_id.data = request.args.get("sku_id", "")
 
         # Apply filters if there's search data
         if form.name.data:
@@ -132,6 +134,12 @@ def inventory():
             query = query.filter(ItemSKU.brand.ilike(f"%{form.brand.data}%"))
         if form.spec.data:
             query = query.filter(ItemSKU.spec.ilike(f"%{form.spec.data}%"))
+        if form.sku_id.data:
+            try:
+                sku_id_int = int(form.sku_id.data)
+                query = query.filter(ItemSKU.id == sku_id_int)
+            except ValueError:
+                pass  # Ignore invalid SKU ID
 
         # Add ordering
         query = query.order_by(Item.name, ItemSKU.brand, ItemSKU.spec)

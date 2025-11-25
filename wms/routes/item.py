@@ -29,6 +29,7 @@ def item():
                 name=form.name.data,
                 brand=form.brand.data,
                 spec=form.spec.data,
+                sku_id=form.sku_id.data,
                 page=1,
             )
         )
@@ -37,6 +38,7 @@ def item():
     form.name.data = request.args.get("name", "")
     form.brand.data = request.args.get("brand", "")
     form.spec.data = request.args.get("spec", "")
+    form.sku_id.data = request.args.get("sku_id", "")
 
     # Apply filters if there's search data
     if form.name.data:
@@ -45,6 +47,12 @@ def item():
         query = query.filter(ItemSKU.brand.ilike(f"%{form.brand.data}%"))
     if form.spec.data:
         query = query.filter(ItemSKU.spec.ilike(f"%{form.spec.data}%"))
+    if form.sku_id.data:
+        try:
+            sku_id_int = int(form.sku_id.data)
+            query = query.filter(ItemSKU.id == sku_id_int)
+        except ValueError:
+            pass  # Ignore invalid SKU ID
 
     # Order by Item.id in descending order
     query = query.order_by(desc(Item.id), desc(ItemSKU.id))

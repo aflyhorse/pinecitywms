@@ -45,10 +45,11 @@
                     {{ item_form.csrf_token }}
                     {{ item_form.item_sku_id }}
                     <div class="item-form d-flex align-items-center">
+                        <div style="flex: 0 0 12%; margin-right: 10px;">{{ render_field(item_form.item_sku_display, placeholder="物料编号", autocomplete="off") }}</div>
                         <div class="flex-grow-1">{{ render_field(item_form.item_id, placeholder="输入或双击选择物品", autocomplete="off") }}</div>
-                        <div class="flex-grow-1">{{ render_field(item_form.stock_count, class="readonly-field") }}</div>
-                        <div class="flex-grow-1">{{ render_field(item_form.quantity) }}</div>
-                        <div class="flex-grow-1">{{ render_field(item_form.price, class="readonly-field") }}</div>
+                        <div style="flex: 0 0 15%;">{{ render_field(item_form.stock_count, class="readonly-field") }}</div>
+                        <div style="flex: 0 0 15%;">{{ render_field(item_form.quantity) }}</div>
+                        <div style="flex: 0 0 15%;">{{ render_field(item_form.price, class="readonly-field") }}</div>
                         <div class="ms-2">
                             <button type="button" class="btn btn-danger remove-item">{{ render_icon('trash') }}</button>
                         </div>
@@ -183,12 +184,14 @@
                 }
             });
 
-            // Create a mapping of item names to IDs, prices and stock counts
+            // Create a mapping of item names to IDs, prices and stock counts, and IDs to names
             const itemNameMapping = {};
+            const itemIdMapping = {};
             const itemPrices = {};
             const itemCounts = {};
             {% for id, name, price, count in items %}
                 itemNameMapping['{{ name }}'] = {{ id }};
+                itemIdMapping[{{ id }}] = '{{ name }}';
                 itemPrices[{{ id }}] = {{ price }};
                 itemCounts[{{ id }}] = {{ count }};
             {% endfor %}
@@ -205,9 +208,46 @@
                 {% endfor %}
             ];
 
-            // Handle item search, selection, and auto-fill for price and stock count
+            // Handle SKU ID input and item search, selection, and auto-fill for price and stock count
             itemsDiv.addEventListener('input', function(event) {
                 const input = event.target;
+                
+                // Handle SKU ID input - sync to item name
+                if (input.name && input.name.endsWith('item_sku_display')) {
+                    const skuId = parseInt(input.value);
+                    const itemIndex = input.name.match(/items-(\d+)/)[1];
+                    const itemForm = input.closest('.item-form');
+                    const itemNameInput = document.querySelector(`[name="items-${itemIndex}-item_id"]`);
+                    const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
+                    const priceInput = itemForm.querySelector('[name$="price"]');
+                    const stockCountInput = itemForm.querySelector('[name$="stock_count"]');
+                    
+                    if (itemIdMapping[skuId]) {
+                        // Valid SKU ID - update item name, price, stock count, and hidden field
+                        itemNameInput.value = itemIdMapping[skuId];
+                        hiddenField.value = skuId;
+                        priceInput.value = itemPrices[skuId].toFixed(2);
+                        stockCountInput.value = itemCounts[skuId];
+                        
+                        // Highlight the readonly fields briefly to show they've been updated
+                        [priceInput, stockCountInput].forEach(field => {
+                            field.style.transition = 'background-color 0.3s';
+                            field.style.backgroundColor = '#d1ecf1';
+                            setTimeout(() => {
+                                field.style.backgroundColor = '';
+                            }, 500);
+                        });
+                    } else if (input.value === '') {
+                        // Clear if empty
+                        itemNameInput.value = '';
+                        hiddenField.value = '';
+                        priceInput.value = '';
+                        stockCountInput.value = '';
+                    }
+                    return;
+                }
+                
+                // Handle item name input
                 if (input.name && input.name.endsWith('item_id')) {
                     // Get the item form container
                     const itemForm = input.closest('.item-form');
@@ -223,11 +263,15 @@
                         priceInput.value = itemPrices[itemId].toFixed(2);
                         stockCountInput.value = itemCounts[itemId];
                         
-                        // Set the hidden field value to the actual item ID
+                        // Set the hidden field value and display field to the actual item ID
                         const itemIndex = input.name.match(/items-(\d+)/)[1];
                         const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
+                        const displayField = document.querySelector(`[name="items-${itemIndex}-item_sku_display"]`);
                         if (hiddenField) {
                             hiddenField.value = itemId;
+                        }
+                        if (displayField) {
+                            displayField.value = itemId;
                         }
                         
                         // Highlight the readonly fields briefly to show they've been updated

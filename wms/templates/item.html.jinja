@@ -41,7 +41,7 @@
                             <th>物料编号</th>
                             <th>品牌</th>
                             <th>规格</th>
-                            <th class="text-end">状态</th>
+                            <th style="width: 40px; white-space: nowrap;">状态</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -61,7 +61,7 @@
                                 {{ itemsku.brand }}</td>
                             <td class="{% if itemsku.disabled %}text-decoration-line-through text-secondary{% endif %}">
                                 <a href="{{ url_for('records', sku_id=itemsku.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ itemsku.spec }}</a></td>
-                            <td class="text-end">
+                            <td class="text-center">
                                 <a href="#" class="toggle-disabled" data-id="{{ itemsku.id }}"
                                     data-status="{{ '1' if itemsku.disabled else '0' }}">
                                     {% if itemsku.disabled %}

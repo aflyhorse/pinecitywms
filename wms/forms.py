@@ -40,6 +40,13 @@ class ItemSearchForm(FlaskForm):
     )
     brand = StringField("品牌", render_kw={"placeholder": "品牌"})
     spec = StringField("规格", render_kw={"placeholder": "规格"})
+    sku_id = StringField(
+        "物料编号",
+        render_kw={
+            "placeholder": "物料编号",
+            "autocomplete": "off",
+        },
+    )
     submit = SubmitField("搜索")
 
 
@@ -63,7 +70,14 @@ class ItemCreateForm(FlaskForm):
 
 
 class StockInItemForm(FlaskForm):
-    item_sku_id = HiddenField("物品ID")  # Hidden field for the actual item SKU ID
+    item_sku_id = HiddenField("物料编号")  # Hidden field for the actual item SKU ID
+    item_sku_display = StringField(
+        "物料编号",
+        render_kw={
+            "placeholder": "物料编号",
+            "autocomplete": "off",
+        },
+    )
     item_id = StringField(
         "物品",
         validators=[InputRequired()],
@@ -90,7 +104,14 @@ class BatchStockInForm(FlaskForm):
 
 
 class StockOutItemForm(FlaskForm):
-    item_sku_id = HiddenField("物品ID")  # Hidden field for the actual item SKU ID
+    item_sku_id = HiddenField("物料编号")  # Hidden field for the actual item SKU ID
+    item_sku_display = StringField(
+        "物料编号",
+        render_kw={
+            "placeholder": "物料编号",
+            "autocomplete": "off",
+        },
+    )
     item_id = StringField(
         "物品", validators=[InputRequired()], render_kw={"list": "item-ids"}
     )

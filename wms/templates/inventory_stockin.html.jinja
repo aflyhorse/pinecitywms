@@ -19,13 +19,16 @@
             {{ item_form.csrf_token }}
             {{ item_form.item_sku_id }}
             <div class="item-form d-flex align-items-center">
+                <div style="flex: 0 0 12%; margin-right: 10px;">
+                    {{ render_field(item_form.item_sku_display, placeholder="物料编号") }}
+                </div>
                 <div class="flex-grow-1">
                     {{ render_field(item_form.item_id, placeholder="输入或双击选择物品") }}
                 </div>
-                <div class="flex-grow-1">
+                <div style="flex: 0 0 15%;">
                     {{ render_field(item_form.quantity) }}
                 </div>
-                <div class="flex-grow-1">
+                <div style="flex: 0 0 15%;">
                     {{ render_field(item_form.price) }}
                 </div>
                 <div class="ms-2">
@@ -144,10 +147,12 @@
             }
         });
 
-        // Create a mapping of item names to IDs
+        // Create a mapping of item names to IDs and IDs to names
         const itemNameMapping = {};
+        const itemIdMapping = {};
         {% for id, name in items %}
         itemNameMapping['{{ name }}'] = {{ id }};
+        itemIdMapping[{{ id }}] = '{{ name }}';
         {% endfor %}
 
         // Store the original items array for searching
@@ -179,18 +184,41 @@
             }
         }, true);  // Use capture phase to ensure this runs before other handlers
 
-        // Handle item search and selection
+        // Handle SKU ID input - sync to item name
         itemsDiv.addEventListener('input', function(event) {
             const input = event.target;
+            if (input.name && input.name.endsWith('item_sku_display')) {
+                const skuId = parseInt(input.value);
+                const itemIndex = input.name.match(/items-(\d+)/)[1];
+                const itemNameInput = document.querySelector(`[name="items-${itemIndex}-item_id"]`);
+                const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
+                
+                if (itemIdMapping[skuId]) {
+                    // Valid SKU ID - update item name and hidden field
+                    itemNameInput.value = itemIdMapping[skuId];
+                    hiddenField.value = skuId;
+                } else if (input.value === '') {
+                    // Clear if empty
+                    itemNameInput.value = '';
+                    hiddenField.value = '';
+                }
+                return;
+            }
+            
+            // Handle item search and selection
             if (input.name && input.name.endsWith('item_id')) {
                 // If exact match found, keep it
                 const itemId = itemNameMapping[input.value];
                 if (itemId) {
-                    // Set the hidden field value to the actual item ID
+                    // Set the hidden field value and display field to the actual item ID
                     const itemIndex = input.name.match(/items-(\d+)/)[1];
                     const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
+                    const displayField = document.querySelector(`[name="items-${itemIndex}-item_sku_display"]`);
                     if (hiddenField) {
                         hiddenField.value = itemId;
+                    }
+                    if (displayField) {
+                        displayField.value = itemId;
                     }
                     return;
                 }

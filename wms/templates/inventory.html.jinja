@@ -4,6 +4,18 @@
 {% from 'bootstrap5/pagination.html' import render_pagination %}
 {% from 'bootstrap5/utils.html' import render_icon %}
 {% block content %}
+<style>
+    /* Compact search form inputs */
+    .compact-search-form input[type="text"] {
+        max-width: 150px;
+    }
+    .compact-search-form input[name="name"] {
+        max-width: 180px;
+    }
+    .compact-search-form input[name="sku_id"] {
+        max-width: 100px;
+    }
+</style>
 <div class="container p-5 my-5">
     <div class="d-flex justify-content-between mb-3">
         <div>
@@ -21,10 +33,10 @@
     </div>
     <div class="card mb-4">
         <div class="card-header">
-            <div class="d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center">
-                    <form method="get" class="d-flex align-items-center">
-                        <select name="warehouse" class="form-select me-2" onchange="this.form.submit()">
+            <div class="row g-3">
+                <div class="col-12 col-lg-auto d-flex align-items-center">
+                    <form method="get" class="d-flex align-items-center flex-wrap">
+                        <select name="warehouse" class="form-select me-2" style="width: auto;" onchange="this.form.submit()">
                             {% for warehouse in warehouses %}
                             <option value="{{ warehouse.id }}" {% if warehouse==selected_warehouse %}selected{% endif
                                 %}>{{ warehouse.name }}</option>
@@ -47,7 +59,11 @@
                             value="{{ itemSearchForm.spec.data }}">{% endif %}
                     </form>
                 </div>
-                <div>{{ render_form(itemSearchForm, form_type="inline") }}</div>
+                <div class="col-12 col-lg d-flex justify-content-lg-end">
+                    <div class="compact-search-form">
+                        {{ render_form(itemSearchForm, form_type="inline") }}
+                    </div>
+                </div>
             </div>
         </div>
         <div class="card-body">
@@ -57,7 +73,9 @@
             warehouse=selected_warehouse.id,
             name=itemSearchForm.name.data,
             brand=itemSearchForm.brand.data,
-            spec=itemSearchForm.spec.data) }}
+            spec=itemSearchForm.spec.data,
+            sku_id=itemSearchForm.sku_id.data,
+            only_available='on' if show_only_available else None) }}
             {% endif %}
             <table class="table table-hover table-bordered">
                 <thead>
@@ -106,7 +124,13 @@
                     {% endfor %}
                 </tbody>
             </table>
-            {% if pagination %}{{ render_pagination(pagination) }}{% endif %}
+            {% if pagination %}{{ render_pagination(pagination,
+            warehouse=selected_warehouse.id,
+            name=itemSearchForm.name.data,
+            brand=itemSearchForm.brand.data,
+            spec=itemSearchForm.spec.data,
+            sku_id=itemSearchForm.sku_id.data,
+            only_available='on' if show_only_available else None) }}{% endif %}
         </div>
     </div>
 </div>
