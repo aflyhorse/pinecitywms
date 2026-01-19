@@ -71,19 +71,19 @@
                             <th>品牌</th>
                             <th>规格</th>
                             <th class="text-end">使用数量</th>
-                            <th class="text-end">单价</th>
+                            <th class="text-end">加权均价</th>
                             <th class="text-end">小计</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for itemsku, item, total_usage, average_price in usage_data %}
+                        {% for itemsku, item, total_usage, average_price, total_value in usage_data %}
                         <tr>
                             <td><a href="{{ url_for('records', item_id=item.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ item.name }}</a></td>
                             <td>{{ itemsku.brand }}</td>
                             <td><a href="{{ url_for('records', sku_id=itemsku.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ itemsku.spec }}</a></td>
                             <td class="text-end">{{ total_usage }}</td>
                             <td class="text-end">¥{{ "%.2f"|format(average_price or 0) }}</td>
-                            <td class="text-end">¥{{ "%.2f"|format(total_usage * (average_price or 0)) }}</td>
+                            <td class="text-end">¥{{ "%.2f"|format(total_value or 0) }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

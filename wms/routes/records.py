@@ -435,46 +435,52 @@ def statistics_usage():
         .all()
     )
 
-    # Query base - aggregate transactions by ItemSKU and get average price from warehouse
-    # We need to join with WarehouseItemSKU to get the current average price
+    # Query base - aggregate transactions by ItemSKU using Transaction.price
+    # Calculate total value and weighted average price from transactions
     if warehouse_id:
-        # For specific warehouse, get the average price from that warehouse
+        # For specific warehouse
         query = (
             db.session.query(
                 ItemSKU,
                 Item,
                 func.sum(Transaction.count * -1).label("total_usage"),
-                WarehouseItemSKU.average_price.label("average_price"),
+                (
+                    func.sum(Transaction.count * Transaction.price * Decimal("-1"))
+                    / func.nullif(func.sum(Transaction.count * -1), 0)
+                ).label("average_price"),
+                func.sum(Transaction.count * Transaction.price * Decimal("-1")).label(
+                    "total_value"
+                ),
             )
             .join(Transaction)
             .join(Receipt)
             .join(Item)
-            .outerjoin(
-                WarehouseItemSKU,
-                (WarehouseItemSKU.itemSKU_id == ItemSKU.id)
-                & (WarehouseItemSKU.warehouse_id == warehouse_id),
-            )
             .filter(Receipt.type == ReceiptType.STOCKOUT)
             .filter(Receipt.revoked.is_(False))
             .filter(
                 Transaction.count < 0
             )  # Only include negative counts which are real stockouts
-            .group_by(ItemSKU.id, Item.id, WarehouseItemSKU.average_price)
+            .group_by(ItemSKU.id, Item.id)
             .order_by(Item.name, ItemSKU.brand, ItemSKU.spec)
         )
     else:
-        # For all warehouses, calculate weighted average price
+        # For all warehouses, calculate weighted average price from transactions
         query = (
             db.session.query(
                 ItemSKU,
                 Item,
                 func.sum(Transaction.count * -1).label("total_usage"),
-                func.avg(WarehouseItemSKU.average_price).label("average_price"),
+                (
+                    func.sum(Transaction.count * Transaction.price * Decimal("-1"))
+                    / func.nullif(func.sum(Transaction.count * -1), 0)
+                ).label("average_price"),
+                func.sum(Transaction.count * Transaction.price * Decimal("-1")).label(
+                    "total_value"
+                ),
             )
             .join(Transaction)
             .join(Receipt)
             .join(Item)
-            .outerjoin(WarehouseItemSKU, WarehouseItemSKU.itemSKU_id == ItemSKU.id)
             .filter(Receipt.type == ReceiptType.STOCKOUT)
             .filter(Receipt.revoked.is_(False))
             .filter(
@@ -523,9 +529,7 @@ def statistics_usage():
 
     # Calculate totals
     total_quantity = sum(data.total_usage for data in usage_data)
-    total_value = sum(
-        (data.total_usage * (data.average_price or 0)) for data in usage_data
-    )
+    total_value = sum((data.total_value or 0) for data in usage_data)
 
     return render_template(
         "statistics_usage.html.jinja",
