@@ -439,10 +439,21 @@ def stockout():
                         items=items,
                     )
 
+                # Always use server-side average price to prevent client tampering
+                average_price = (
+                    db.session.query(WarehouseItemSKU.average_price)
+                    .filter(
+                        WarehouseItemSKU.itemSKU_id == item_id,
+                        WarehouseItemSKU.warehouse_id == selected_warehouse.id,
+                    )
+                    .scalar()
+                    or 0
+                )
+
                 transaction = Transaction(
                     itemSKU_id=item_id,
                     count=-item_form.quantity.data,  # Negative for stock out
-                    price=item_form.price.data,
+                    price=average_price,
                     receipt_id=receipt.id,
                 )
                 db.session.add(transaction)
