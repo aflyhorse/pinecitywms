@@ -105,10 +105,16 @@
                     const csrfToken = document.querySelector(`[name="items-${lastIndex}-csrf_token"]`);
                     const newCsrfToken = csrfToken.cloneNode(true);
                     newCsrfToken.name = `items-${newIndex}-csrf_token`;
+                    if (newCsrfToken.id) {
+                        newCsrfToken.id = newCsrfToken.id.replace(/items-\d+/, `items-${newIndex}`);
+                    }
                     
                     // Update hidden field name
                     newHiddenField.name = `items-${newIndex}-item_sku_id`;
                     newHiddenField.value = '';
+                    if (newHiddenField.id) {
+                        newHiddenField.id = newHiddenField.id.replace(/items-\d+/, `items-${newIndex}`);
+                    }
                     
                     // Insert hidden fields before the template
                     itemsDiv.appendChild(newHiddenField);
@@ -119,6 +125,8 @@
                         if (!input.name.endsWith('csrf_token')) {  // Don't clear CSRF token
                             input.value = '';
                         }
+                        input.removeAttribute('data-original-value');
+                        input.classList.remove('is-invalid');
                         
                         // Update the input name and id to use the new index
                         if (input.name) {
@@ -225,6 +233,7 @@
                     if (itemIdMapping[skuId]) {
                         // Valid SKU ID - update item name, price, stock count, and hidden field
                         itemNameInput.value = itemIdMapping[skuId];
+                        itemNameInput.setAttribute('data-original-value', itemNameInput.value);
                         hiddenField.value = skuId;
                         priceInput.value = itemPrices[skuId].toFixed(2);
                         stockCountInput.value = itemCounts[skuId];
@@ -237,9 +246,10 @@
                                 field.style.backgroundColor = '';
                             }, 500);
                         });
-                    } else if (input.value === '') {
-                        // Clear if empty
+                    } else {
+                        // Clear if empty or invalid
                         itemNameInput.value = '';
+                        itemNameInput.setAttribute('data-original-value', '');
                         hiddenField.value = '';
                         priceInput.value = '';
                         stockCountInput.value = '';
@@ -286,6 +296,15 @@
                         return;
                     }
 
+                    // No exact match - clear hidden field and readonly values
+                    const itemIndex = input.name.match(/items-(\d+)/)[1];
+                    const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
+                    if (hiddenField) {
+                        hiddenField.value = '';
+                    }
+                    priceInput.value = '';
+                    stockCountInput.value = '';
+
                     // Update datalist options based on input
                     const datalist = document.getElementById('item-ids');
                     datalist.innerHTML = '';
@@ -309,27 +328,22 @@
                 let hasError = false;
 
                 for (let input of itemInputs) {
-                    // Use the data-original-value to look up the ID
-                    const originalValue = input.getAttribute('data-original-value') || input.value;
-                    const itemId = itemNameMapping[originalValue];
+                    const itemId = itemNameMapping[input.value];
+                    const itemIndex = input.name.match(/items-(\d+)/)[1];
+                    const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
                     
-                    if (itemId) {
-                        // Get the index from the input name
-                        const itemIndex = input.name.match(/items-(\d+)/)[1];
-                        // Set the hidden field
-                        const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);
-                        
-                        if (hiddenField) {
-                            hiddenField.value = itemId;
-                        }
-                    } else if (input.value) {
+                    if (!itemId || !hiddenField || parseInt(hiddenField.value) !== itemId) {
                         hasError = true;
+                        input.classList.add('is-invalid');
+                    } else {
+                        hiddenField.value = itemId;
+                        input.classList.remove('is-invalid');
                     }
                 }
 
                 if (hasError) {
                     event.preventDefault();
-                    alert('请从列表中选择有效的物品');
+                    alert('请从列表中选择有效的物品，且物料编号与物品一致');
                 }
             });
             
@@ -337,11 +351,11 @@
             document.querySelectorAll('[name$="item_id"]').forEach(input => {
                 input.setAttribute('data-original-value', input.value);
                 input.setAttribute('autocomplete', 'off');
-                
+
                 // Also set the hidden field value
                 const name = input.value;
                 const itemId = itemNameMapping[name];
-                
+
                 if (itemId) {
                     const itemIndex = input.name.match(/items-(\d+)/)[1];
                     const hiddenField = document.querySelector(`[name="items-${itemIndex}-item_sku_id"]`);

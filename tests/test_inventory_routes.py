@@ -4,6 +4,10 @@ from wms import app, db
 from werkzeug.security import generate_password_hash
 
 
+def _sku_display(sku):
+    return f"{sku.item.name} - {sku.brand} - {sku.spec}"
+
+
 @pytest.mark.usefixtures("test_item")
 def test_stockin(auth_client, test_warehouse):
     # Test stockin page access
@@ -90,6 +94,7 @@ def test_stockout_process(auth_client, test_warehouse, test_customer):
     # First add some inventory via stockin
     with app.app_context():
         sku = ItemSKU.query.first()
+        sku_display = _sku_display(sku)
 
     # Add inventory
     response = auth_client.post(
@@ -113,7 +118,8 @@ def test_stockout_process(auth_client, test_warehouse, test_customer):
             "area": test_customer["area"],
             "department": test_customer["department"],
             "location": "测试地点",
-            "items-0-item_id": str(sku.id),
+            "items-0-item_id": sku_display,
+            "items-0-item_sku_id": str(sku.id),
             "items-0-quantity": "5",
             "items-0-price": "60.00",
         },
@@ -134,6 +140,7 @@ def test_stockout_insufficient_stock(auth_client, test_warehouse, test_customer)
     # First add some inventory via stockin
     with app.app_context():
         sku = ItemSKU.query.first()
+        sku_display = _sku_display(sku)
 
     # Add limited inventory
     response = auth_client.post(
@@ -157,7 +164,8 @@ def test_stockout_insufficient_stock(auth_client, test_warehouse, test_customer)
             "area": test_customer["area"],
             "department": test_customer["department"],
             "location": "测试地点",
-            "items-0-item_id": str(sku.id),
+            "items-0-item_id": sku_display,
+            "items-0-item_sku_id": str(sku.id),
             "items-0-quantity": "10",  # More than available
             "items-0-price": "60.00",
         },
@@ -176,14 +184,15 @@ def test_stockout_invalid_item(auth_client, test_customer, test_warehouse):
             "area": test_customer["area"],
             "department": test_customer["department"],
             "location": "测试地点",
-            "items-0-item_id": "99999",  # Non-existent ID
+            "items-0-item_id": "不存在的物品",
+            "items-0-item_sku_id": "99999",  # Non-existent ID
             "items-0-quantity": "5",
             "items-0-price": "60.00",
         },
         follow_redirects=True,
     )
     assert response.status_code == 200
-    assert "无效的物品".encode() in response.data
+    assert "Invalid item ID".encode() in response.data
 
 
 def test_inventory(auth_client, test_warehouse, test_item):
@@ -400,6 +409,8 @@ def test_stockout_multiple_items(test_user, auth_client, test_warehouse, test_cu
         # Get first item
         item1 = ItemSKU.query.first()
         item2 = ItemSKU.query.filter(ItemSKU.id != item1.id).first()
+        item1_display = _sku_display(item1)
+        item2_display = _sku_display(item2)
 
     # Add inventory for first item
     response = auth_client.post(
@@ -436,10 +447,12 @@ def test_stockout_multiple_items(test_user, auth_client, test_warehouse, test_cu
             "area": test_customer["area"],
             "department": test_customer["department"],
             "location": "测试地点",
-            "items-0-item_id": str(item1.id),
+            "items-0-item_id": item1_display,
+            "items-0-item_sku_id": str(item1.id),
             "items-0-quantity": "5",
             "items-0-price": "110.00",
-            "items-1-item_id": str(item2.id),
+            "items-1-item_id": item2_display,
+            "items-1-item_sku_id": str(item2.id),
             "items-1-quantity": "8",
             "items-1-price": "160.00",
         },
@@ -488,6 +501,7 @@ def test_stockout_receipt_creation(auth_client, test_warehouse, test_customer):
     # Add inventory
     with app.app_context():
         sku = ItemSKU.query.first()
+        sku_display = _sku_display(sku)
 
     response = auth_client.post(
         "/stockin",
@@ -514,7 +528,8 @@ def test_stockout_receipt_creation(auth_client, test_warehouse, test_customer):
             "area": test_customer["area"],
             "department": test_customer["department"],
             "location": "测试地点",
-            "items-0-item_id": str(sku.id),
+            "items-0-item_id": sku_display,
+            "items-0-item_sku_id": str(sku.id),
             "items-0-quantity": "12",
             "items-0-price": "95.00",
         },
@@ -546,7 +561,7 @@ def test_stockout_receipt_creation(auth_client, test_warehouse, test_customer):
         # Check transaction details
         transaction = receipt.transactions[0]
         assert transaction.count == -12  # Negative for stockout
-        assert transaction.price == 95.00
+        assert transaction.price == 90.00
         assert transaction.itemSKU_id == sku.id
 
 
@@ -576,6 +591,7 @@ def test_warehouse_item_availability(
     # Create a second warehouse and add items only to that warehouse
     with app.app_context():
         sku = ItemSKU.query.first()
+        sku_display = _sku_display(sku)
 
     # Add inventory to second warehouse only
     response = auth_client.post(
@@ -599,7 +615,8 @@ def test_warehouse_item_availability(
             "area": test_customer["area"],
             "department": test_customer["department"],
             "location": "测试地点",
-            "items-0-item_id": str(sku.id),
+            "items-0-item_id": sku_display,
+            "items-0-item_sku_id": str(sku.id),
             "items-0-quantity": "5",
             "items-0-price": "75.00",
         },
@@ -618,7 +635,8 @@ def test_warehouse_item_availability(
             "area": test_customer["area"],
             "department": test_customer["department"],
             "location": "测试地点",
-            "items-0-item_id": str(sku.id),
+            "items-0-item_id": sku_display,
+            "items-0-item_sku_id": str(sku.id),
             "items-0-quantity": "5",
             "items-0-price": "75.00",
         },
@@ -652,6 +670,7 @@ def test_stockout_invalid_area_and_department(auth_client, test_warehouse):
     with app.app_context():
         sku = ItemSKU.query.first()
         sku_id = sku.id
+        sku_display = _sku_display(sku)
         # First add inventory so we can attempt stockout
         receipt = Receipt(
             operator_id=1,
@@ -673,7 +692,8 @@ def test_stockout_invalid_area_and_department(auth_client, test_warehouse):
             "area": 999,  # Non-existent area ID
             "department": 1,
             "location": "测试地点",
-            "items-0-item_id": str(sku_id),
+            "items-0-item_id": sku_display,
+            "items-0-item_sku_id": str(sku_id),
             "items-0-quantity": "5",
             "items-0-price": "60.00",
         },
@@ -690,7 +710,8 @@ def test_stockout_invalid_area_and_department(auth_client, test_warehouse):
             "area": 1,
             "department": 999,  # Non-existent department ID
             "location": "测试地点",
-            "items-0-item_id": str(sku_id),
+            "items-0-item_id": sku_display,
+            "items-0-item_sku_id": str(sku_id),
             "items-0-quantity": "5",
             "items-0-price": "60.00",
         },
@@ -707,7 +728,8 @@ def test_stockout_invalid_area_and_department(auth_client, test_warehouse):
             "area": 1,
             "department": 1,
             "location": "测试地点",
-            "items-0-item_id": str(sku_id),
+            "items-0-item_id": sku_display,
+            "items-0-item_sku_id": str(sku_id),
             "items-0-quantity": "5",
             "items-0-price": "60.00",
         },

@@ -404,20 +404,34 @@ def stockout():
         db.session.add(receipt)
         db.session.flush()
 
+        seen_item_ids = set()
+
         for item_form in form.items:
             try:
                 # Use the hidden item_sku_id field instead of item_id text field
                 item_sku_id = item_form.item_sku_id.data
                 if not item_sku_id:
-                    # Fallback to the old method if hidden field is not populated
-                    item_sku_id = item_form.item_id.data
+                    raise ValueError("物料编号缺失，请从列表中重新选择物品")
 
                 item_id = int(item_sku_id)
+
+                if item_id in seen_item_ids:
+                    raise ValueError("同一出库单中存在重复物料，请重新提交")
+                seen_item_ids.add(item_id)
 
                 # Validate the item exists
                 item = db.session.get(ItemSKU, item_id)
                 if not item:
                     raise ValueError("Invalid item ID")
+
+                # Validate that the displayed item name matches the selected SKU
+                expected_name = items_dict.get(item_id, {}).get("name")
+                if expected_name and item_form.item_id.data != expected_name:
+                    raise ValueError("物品与物料编号不一致，请重新选择物品")
+
+                quantity = item_form.quantity.data
+                if quantity <= 0:
+                    continue
 
                 # Check if there's enough stock in the selected warehouse
                 available_stock = (
@@ -430,7 +444,7 @@ def stockout():
                     or 0
                 )
 
-                if available_stock < item_form.quantity.data:
+                if available_stock < quantity:
                     item_name = items_dict.get(item_id, {}).get("name", "Unknown Item")
                     flash(f"库存不足: {item_name}", "danger")
                     return render_template(
@@ -452,13 +466,13 @@ def stockout():
 
                 transaction = Transaction(
                     itemSKU_id=item_id,
-                    count=-item_form.quantity.data,  # Negative for stock out
+                    count=-quantity,  # Negative for stock out
                     price=average_price,
                     receipt_id=receipt.id,
                 )
                 db.session.add(transaction)
-            except ValueError:
-                flash("无效的物品", "danger")
+            except ValueError as e:
+                flash(str(e), "danger")
                 return render_template(
                     "inventory_stockout.html.jinja",
                     form=form,
