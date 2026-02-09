@@ -348,6 +348,9 @@ def stockout():
                     form.items[0].item_sku_id.data = str(
                         selected_item[0]
                     )  # Set the hidden ID
+                    form.items[0].item_sku_display.data = str(
+                        selected_item[0]
+                    )  # Set the visible SKU ID
                     form.items[0].stock_count.data = selected_item[
                         3
                     ]  # Set the stock count
