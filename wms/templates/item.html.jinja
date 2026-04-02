@@ -41,18 +41,22 @@
                             <th>物料编号</th>
                             <th>品牌</th>
                             <th>规格</th>
+                            <th style="width: 40px; white-space: nowrap;">工具</th>
                             <th style="width: 40px; white-space: nowrap;">状态</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% set ns = namespace(prev_item=none, rowspan=0) %}
+                        {% set ns = namespace(prev_item=none, rowspan=0, is_first=false) %}
                         {% for itemsku in pagination.items %}
-                        <tr>
-                            {% if ns.prev_item != itemsku.item.name %}
-                            {# Count rowspan for current item #}
-                            {% set ns.rowspan = pagination.items|selectattr('item.name', 'equalto',
-                            itemsku.item.name)|list|length %}
+                        {% if ns.prev_item != itemsku.item.name %}
+                            {% set ns.rowspan = pagination.items|selectattr('item.name', 'equalto', itemsku.item.name)|list|length %}
                             {% set ns.prev_item = itemsku.item.name %}
+                            {% set ns.is_first = true %}
+                        {% else %}
+                            {% set ns.is_first = false %}
+                        {% endif %}
+                        <tr>
+                            {% if ns.is_first %}
                             <td rowspan="{{ ns.rowspan }}"><a href="{{ url_for('records', item_id=itemsku.item.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ itemsku.item.name }}</a></td>
                             {% endif %}
                             <td class="{% if itemsku.disabled %}text-decoration-line-through text-secondary{% endif %}">
@@ -61,6 +65,19 @@
                                 {{ itemsku.brand }}</td>
                             <td class="{% if itemsku.disabled %}text-decoration-line-through text-secondary{% endif %}">
                                 <a href="{{ url_for('records', sku_id=itemsku.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ itemsku.spec }}</a></td>
+                            {% if ns.is_first %}
+                            <td rowspan="{{ ns.rowspan }}" class="text-center">
+                                <a href="#" class="toggle-tool" data-id="{{ itemsku.item.id }}"
+                                    data-status="{{ '1' if itemsku.item.is_tool else '0' }}"
+                                    title="{{ '已标记为工具，点击取消' if itemsku.item.is_tool else '点击标记为工具' }}">
+                                    {% if itemsku.item.is_tool %}
+                                    <span class="text-success">{{ render_icon('wrench-adjustable-circle-fill') }}</span>
+                                    {% else %}
+                                    <span class="text-secondary">{{ render_icon('wrench-adjustable') }}</span>
+                                    {% endif %}
+                                </a>
+                            </td>
+                            {% endif %}
                             <td class="text-center">
                                 <a href="#" class="toggle-disabled" data-id="{{ itemsku.id }}"
                                     data-status="{{ '1' if itemsku.disabled else '0' }}">
@@ -111,12 +128,44 @@
                     fetch(`/item/${itemId}/toggle_disabled`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
                         }
                     })
                         .then(response => {
                             if (response.ok) {
                                 // Reload the page to show updated status
+                                window.location.reload();
+                            } else {
+                                alert('操作失败，请重试。');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('发生错误，请重试。');
+                        });
+                }
+            });
+        });
+
+        // Toggle tool classification
+        const toolButtons = document.querySelectorAll('.toggle-tool');
+        toolButtons.forEach(button => {
+            button.addEventListener('click', function (e) {
+                e.preventDefault();
+                const itemId = this.dataset.id;
+                const isTool = this.dataset.status === '1';
+                const msg = isTool ? '确定要取消此物品的工具标记吗？' : '确定要将此物品标记为工具吗？';
+                if (confirm(msg)) {
+                    fetch(`/item/${itemId}/toggle_tool`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                        }
+                    })
+                        .then(response => {
+                            if (response.ok) {
                                 window.location.reload();
                             } else {
                                 alert('操作失败，请重试。');

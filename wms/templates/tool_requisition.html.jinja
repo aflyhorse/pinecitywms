@@ -1,0 +1,87 @@
+{% extends "base.html.jinja" %}
+{% from 'bootstrap5/utils.html' import render_icon %}
+{% block content %}
+<div class="container p-5 my-5">
+    <h2 class="mb-4">工具领用</h2>
+    <form method="post" id="requisition-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">在库工具列表</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="select-all" class="form-check-input">
+                                </th>
+                                <th>工具名称</th>
+                                <th>品牌</th>
+                                <th>规格</th>
+                                <th style="width: 120px;">库内余量</th>
+                                <th style="width: 120px;">领用数量</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ti in tool_inventory %}
+                            <tr>
+                                <td class="text-center">
+                                    <input type="checkbox" name="sku_ids[]" value="{{ ti.itemSKU.id }}"
+                                        class="form-check-input sku-checkbox">
+                                </td>
+                                <td>{{ ti.itemSKU.item.name }}</td>
+                                <td>{{ ti.itemSKU.brand }}</td>
+                                <td>{{ ti.itemSKU.spec }}</td>
+                                <td class="text-center">{{ ti.count }}</td>
+                                <td>
+                                    <input type="number" name="qty_{{ ti.itemSKU.id }}" value="1"
+                                        min="1" max="{{ ti.count }}"
+                                        class="form-control form-control-sm qty-input">
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-secondary py-4">暂无在库工具</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-end g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">选择员工</label>
+                        <select name="employee_id" class="form-select" required>
+                            <option value="">请选择员工</option>
+                            {% for emp in employees %}
+                            <option value="{{ emp.id }}">{{ emp.employee_id }} - {{ emp.name }}
+                                ({{ emp.user.nickname if emp.user else '—' }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary">
+                            {{ render_icon('bag-plus') }} 确认领用
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.getElementById('select-all').addEventListener('change', function () {
+        document.querySelectorAll('.sku-checkbox').forEach(cb => cb.checked = this.checked);
+    });
+</script>
+{% endblock scripts %}

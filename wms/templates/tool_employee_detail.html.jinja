@@ -1,0 +1,90 @@
+{% extends "base.html.jinja" %}
+{% from 'bootstrap5/utils.html' import render_icon %}
+{% block content %}
+<div class="container p-5 my-5">
+    <div class="d-flex align-items-center mb-4 gap-3">
+        <a href="{{ url_for('employees') }}" class="btn btn-outline-secondary btn-sm">
+            {{ render_icon('arrow-left') }} 返回
+        </a>
+        <h2 class="mb-0">工具更换/归还 — {{ employee.name }}（{{ employee.employee_id }}）</h2>
+    </div>
+
+    <form method="post" id="return-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">当前持有工具</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="select-all" class="form-check-input">
+                                </th>
+                                <th>工具名称</th>
+                                <th>品牌</th>
+                                <th>规格</th>
+                                <th style="width: 100px;">持有数量</th>
+                                <th style="width: 120px;">操作数量</th>
+                                <th style="width: 100px;" class="text-secondary" style="font-size: 0.85em;">库内余量</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for holding in holdings %}
+                            <tr>
+                                <td class="text-center">
+                                    <input type="checkbox" name="sku_ids[]" value="{{ holding.itemSKU_id }}"
+                                        class="form-check-input sku-checkbox">
+                                </td>
+                                <td>{{ holding.itemSKU.item.name }}</td>
+                                <td>{{ holding.itemSKU.brand }}</td>
+                                <td>{{ holding.itemSKU.spec }}</td>
+                                <td class="text-center">{{ holding.count }}</td>
+                                <td>
+                                    <input type="number" name="qty_{{ holding.itemSKU_id }}" value="1"
+                                        min="1" max="{{ holding.count }}"
+                                        class="form-control form-control-sm">
+                                </td>
+                                <td class="text-center text-secondary" style="font-size: 0.85em;">
+                                    {{ tool_counts.get(holding.itemSKU_id, 0) }}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center text-secondary py-4">该员工当前未持有任何工具</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {% if holdings %}
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex gap-3">
+                    <button type="submit" name="action" value="return" class="btn btn-success">
+                        {{ render_icon('box-arrow-in-down') }} 归还（增加库内余量）
+                    </button>
+                    <button type="submit" name="action" value="exchange" class="btn btn-warning">
+                        {{ render_icon('arrow-repeat') }} 更换（旧转报废 + 领新品）
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </form>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.getElementById('select-all').addEventListener('change', function () {
+        document.querySelectorAll('.sku-checkbox').forEach(cb => cb.checked = this.checked);
+    });
+</script>
+{% endblock scripts %}

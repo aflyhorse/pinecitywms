@@ -19,6 +19,7 @@ from wms.models import (
     Transaction,
     ReceiptType,
     WarehouseItemSKU,
+    ToolInventory,
 )
 from wms.forms import BatchStockInForm, BatchTakeStockForm
 from wms.utils import admin_required
@@ -144,6 +145,24 @@ def batch_stockin():
 
             # Update warehouse inventory
             receipt.update_warehouse_item_skus()
+            db.session.commit()
+
+            # Sync tool inventory for tool items
+            for transaction in receipt.transactions:
+                sku = db.session.get(ItemSKU, transaction.itemSKU_id)
+                if sku and sku.item.is_tool:
+                    ti = ToolInventory.query.filter_by(
+                        user_id=receipt.operator_id, itemSKU_id=sku.id
+                    ).first()
+                    if ti is None:
+                        ti = ToolInventory(
+                            user_id=receipt.operator_id,
+                            itemSKU_id=sku.id,
+                            count=0,
+                            pending_scrap=0,
+                        )
+                        db.session.add(ti)
+                    ti.count += transaction.count
             db.session.commit()
 
             flash(f"成功处理 {processed_count} 条记录", "success")

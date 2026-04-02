@@ -1,0 +1,86 @@
+{% extends "base.html.jinja" %}
+{% from 'bootstrap5/utils.html' import render_icon %}
+{% from 'bootstrap5/pagination.html' import render_pagination %}
+{% block content %}
+<div class="container p-5 my-5">
+    <h2 class="mb-4">确认单打印</h2>
+    <form method="post" id="print-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="card mb-4">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="select-all" class="form-check-input">
+                                </th>
+                                <th>日期</th>
+                                <th>类型</th>
+                                <th>员工</th>
+                                <th>操作人</th>
+                                <th>工具数</th>
+                                <th style="width: 80px;">已打印</th>
+                                <th style="width: 80px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tr in pagination.items %}
+                            {% set type_labels = {
+                                'REQUISITION': ('领用', 'text-bg-primary'),
+                                'EXCHANGE': ('更换', 'text-bg-warning'),
+                                'RETURN': ('归还', 'text-bg-success'),
+                                'SCRAP': ('报废', 'text-bg-danger')
+                            } %}
+                            {% set label, badge = type_labels[tr.type.name] %}
+                            <tr class="{% if not tr.printed %}table-warning{% endif %}">
+                                <td class="text-center">
+                                    <input type="checkbox" name="receipt_ids[]" value="{{ tr.id }}"
+                                        class="form-check-input receipt-checkbox"
+                                        {% if not tr.printed %}checked{% endif %}>
+                                </td>
+                                <td>{{ tr.date.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td><span class="badge {{ badge }}">{{ label }}</span></td>
+                                <td>{{ tr.employee.name if tr.employee else '—' }}</td>
+                                <td>{{ tr.operator.nickname }}</td>
+                                <td class="text-center">{{ tr.transactions|length }}</td>
+                                <td class="text-center">
+                                    {% if tr.printed %}
+                                    <span class="text-success">{{ render_icon('check-circle') }}</span>
+                                    {% else %}
+                                    <span class="text-secondary">{{ render_icon('circle') }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('tool_print_detail', receipt_id=tr.id) }}"
+                                        class="btn btn-sm btn-outline-secondary" target="_blank">详情</a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="8" class="text-center text-secondary py-4">暂无记录</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {{ render_pagination(pagination) }}
+        <div class="mt-3">
+            <button type="submit" class="btn btn-primary">
+                {{ render_icon('printer') }} 标记选中为已打印
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.getElementById('select-all').addEventListener('change', function () {
+        document.querySelectorAll('.receipt-checkbox').forEach(cb => cb.checked = this.checked);
+    });
+</script>
+{% endblock scripts %}

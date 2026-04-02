@@ -1,0 +1,128 @@
+{% extends "base.html.jinja" %}
+{% from 'bootstrap5/form.html' import render_form, render_field %}
+{% from 'bootstrap5/utils.html' import render_icon %}
+{% block content %}
+<div class="container p-5 my-5">
+    <div class="card mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="mb-0">人员管理</h3>
+                <div class="d-flex align-items-center gap-3">
+                    <form method="get" class="d-flex align-items-center gap-2 mb-0">
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="checkbox" name="include_resigned" value="1"
+                                id="include_resigned" {% if include_resigned %}checked{% endif %}
+                                onchange="this.form.submit()">
+                            <label class="form-check-label" for="include_resigned">包括已离职员工</label>
+                        </div>
+                    </form>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+                        {{ render_icon('person-plus') }} 新增员工
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered">
+                    <thead>
+                        <tr>
+                            <th>工号</th>
+                            <th>姓名</th>
+                            <th>所属班组</th>
+                            <th>状态</th>
+                            <th style="width: 80px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for emp in employees %}
+                        <tr {% if emp.is_resigned %}class="text-secondary"{% endif %}>
+                            <td>{{ emp.employee_id }}</td>
+                            <td>
+                                <a href="{{ url_for('tool_employee_detail', employee_id=emp.id) }}"
+                                    class="text-decoration-none {% if emp.is_resigned %}text-secondary{% endif %}">
+                                    {{ emp.name }}
+                                </a>
+                            </td>
+                            <td>{{ emp.user.nickname if emp.user else '—' }}</td>
+                            <td>
+                                {% if emp.is_resigned %}
+                                <span class="badge text-bg-secondary">已离职</span>
+                                {% else %}
+                                <span class="badge text-bg-success">在职</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if not emp.is_resigned %}
+                                <form method="post" action="{{ url_for('employee_resign', employee_id=emp.id) }}"
+                                    class="resign-form" data-name="{{ emp.name }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">离职</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-secondary">暂无员工数据</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Employee Modal -->
+<div class="modal fade" id="addEmployeeModal" tabindex="-1" aria-labelledby="addEmployeeModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post">
+                {{ form.csrf_token }}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addEmployeeModalLabel">新增员工</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        {{ form.employee_id.label(class="form-label") }}
+                        {{ form.employee_id(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control") }}
+                    </div>
+                    {% if user.is_admin %}
+                    <div class="mb-3">
+                        {{ form.user_id.label(class="form-label") }}
+                        {{ form.user_id(class="form-select") }}
+                    </div>
+                    {% else %}
+                    {{ form.user_id(type="hidden") }}
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    {{ form.submit(class="btn btn-primary") }}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.querySelectorAll('.resign-form').forEach(form => {
+        form.addEventListener('submit', function (e) {
+            const name = this.dataset.name;
+            if (!confirm(`确定要将员工 "${name}" 标记为离职吗？`)) {
+                e.preventDefault();
+            }
+        });
+    });
+</script>
+{% endblock scripts %}

@@ -3,7 +3,7 @@ from flask_login import login_required
 from sqlalchemy import select, distinct, desc
 from wms import app, db
 from wms.utils import admin_required
-from wms.models import Item, ItemSKU
+from wms.models import Item, ItemSKU, ToolInventory
 from wms.forms import ItemSearchForm, ItemCreateForm
 
 
@@ -136,5 +136,50 @@ def toggle_disabled(itemSKU_id):
             "success": True,
             "disabled": item_sku.disabled,
             "message": "物品已{}。".format("禁用" if item_sku.disabled else "启用"),
+        }
+    )
+
+
+@app.route("/item/<int:item_id>/toggle_tool", methods=["POST"])
+@login_required
+@admin_required
+def toggle_tool(item_id):
+    """Toggle whether an item is classified as a tool."""
+    item = db.session.get(Item, item_id)
+    if not item:
+        return jsonify({"success": False, "message": "物品不存在"}), 404
+
+    item.is_tool = not item.is_tool
+
+    if item.is_tool:
+        # Seed ToolInventory from current warehouse stock (one row per group-user per SKU)
+        for sku in item.skus:
+            for wis in sku.warehouses:
+                owner_id = wis.warehouse.owner_id
+                if not owner_id or wis.count <= 0:
+                    continue  # skip public warehouses and empty stock
+                ti = ToolInventory.query.filter_by(
+                    user_id=owner_id, itemSKU_id=sku.id
+                ).first()
+                if ti is None:
+                    ti = ToolInventory(
+                        user_id=owner_id,
+                        itemSKU_id=sku.id,
+                        count=wis.count,
+                        pending_scrap=0,
+                    )
+                    db.session.add(ti)
+                else:
+                    ti.count = wis.count  # resync if toggled off and back on
+    else:
+        # Remove tool inventory rows when un-marking
+        for sku in item.skus:
+            ToolInventory.query.filter_by(itemSKU_id=sku.id).delete()
+    db.session.commit()
+    return jsonify(
+        {
+            "success": True,
+            "is_tool": item.is_tool,
+            "message": "已标记为工具" if item.is_tool else "已取消工具标记",
         }
     )

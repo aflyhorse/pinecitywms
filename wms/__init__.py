@@ -4,6 +4,7 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect
 
 
 app = Flask(__name__)
@@ -37,6 +38,7 @@ app.config["SQLALCHEMY_MAX_OVERFLOW"] = 20
 app.secret_key = os.getenv("SECRET_KEY", "dev")
 app.config["BOOTSTRAP_SERVE_LOCAL"] = True
 bootstrap = Bootstrap5(app)
+csrf = CSRFProtect(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
 db = SQLAlchemy(app)

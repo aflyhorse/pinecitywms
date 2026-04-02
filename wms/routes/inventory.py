@@ -12,12 +12,33 @@ from wms.models import (
     WarehouseItemSKU,
     Area,
     Department,
+    ToolInventory,
 )
 from wms.forms import StockInForm, ItemSearchForm, StockOutForm
 from sqlalchemy import and_
 from io import BytesIO
 import pandas as pd
 from datetime import datetime
+
+
+def _sync_tool_inventory_stockin(receipt: Receipt):
+    """After a STOCKIN receipt is committed, update ToolInventory counts for tool SKUs."""
+    for transaction in receipt.transactions:
+        sku = db.session.get(ItemSKU, transaction.itemSKU_id)
+        if sku and sku.item.is_tool:
+            ti = ToolInventory.query.filter_by(
+                user_id=receipt.operator_id, itemSKU_id=sku.id
+            ).first()
+            if ti is None:
+                ti = ToolInventory(
+                    user_id=receipt.operator_id,
+                    itemSKU_id=sku.id,
+                    count=0,
+                    pending_scrap=0,
+                )
+                db.session.add(ti)
+            ti.count += transaction.count
+    db.session.commit()
 
 
 @app.route("/inventory", methods=["GET", "POST"])
@@ -236,6 +257,7 @@ def stockin():
             db.session.commit()
             receipt.update_warehouse_item_skus()
             db.session.commit()
+            _sync_tool_inventory_stockin(receipt)
 
             # Save the selected warehouse to session
             session["last_warehouse_id"] = form.warehouse.data

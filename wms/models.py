@@ -20,6 +20,7 @@ class User(db.Model, UserMixin):
     is_admin: Mapped[bool]
     receipts: Mapped[List["Receipt"]] = relationship(back_populates="operator")
     warehouse: Mapped["Warehouse"] = relationship(back_populates="owner", uselist=False)
+    employees: Mapped[List["Employee"]] = relationship(back_populates="user")
 
     def set_password(self, password: str):
         self.password_hash = generate_password_hash(password)
@@ -34,6 +35,8 @@ class Item(db.Model):
     name: Mapped[str] = mapped_column(
         String(30), unique=True, nullable=False, index=True
     )
+    # Whether this item is a tool (managed via tool inventory)
+    is_tool: Mapped[bool] = mapped_column(default=False, nullable=False)
     # One item can have multiple SKUs with different specs
     skus: Mapped[List["ItemSKU"]] = relationship(back_populates="item")
 
@@ -67,6 +70,10 @@ class ItemSKU(db.Model):
     trasanctions: Mapped[List["Transaction"]] = relationship(back_populates="itemSKU")
     warehouses: Mapped[List["WarehouseItemSKU"]] = relationship(
         "WarehouseItemSKU", back_populates="itemSKU"
+    )
+    # Tool inventory entries (one per group-user per SKU, exist only if item.is_tool)
+    tool_inventories: Mapped[List["ToolInventory"]] = relationship(
+        "ToolInventory", back_populates="itemSKU"
     )
 
 
@@ -134,6 +141,8 @@ class Receipt(db.Model):
     location: Mapped[str] = mapped_column(String(30), nullable=True)
     # Additional notes for stockout and takestock
     note: Mapped[str] = mapped_column(String(100), nullable=True)
+    # Whether this receipt involves tool items
+    is_tool: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     @property
     def sum(self) -> Decimal:
@@ -233,3 +242,98 @@ class Area(db.Model):
 class Department(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
+
+
+class Employee(db.Model):
+    """Represents a worker/employee associated with a shift group (班组 user)."""
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    employee_id: Mapped[str] = mapped_column(
+        String(20), unique=True, nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(30), nullable=False)
+    is_resigned: Mapped[bool] = mapped_column(default=False, nullable=False)
+    # Associated 班组 user account
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=True)
+    user: Mapped["User"] = relationship("User", back_populates="employees")
+    # Tool holdings and records
+    tool_holdings: Mapped[List["EmployeeToolHolding"]] = relationship(
+        back_populates="employee"
+    )
+    tool_transactions: Mapped[List["ToolTransaction"]] = relationship(
+        back_populates="employee"
+    )
+
+
+class ToolInventory(db.Model):
+    """Tracks per-group tool quantities and pending-scrap count for each tool SKU."""
+
+    # Composite PK: one row per (group user, SKU)
+    user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), primary_key=True)
+    itemSKU_id: Mapped[int] = mapped_column(ForeignKey("item_sku.id"), primary_key=True)
+    user: Mapped["User"] = relationship("User")
+    itemSKU: Mapped["ItemSKU"] = relationship(
+        "ItemSKU", back_populates="tool_inventories"
+    )
+    # Current available stock (余量)
+    count: Mapped[int] = mapped_column(default=0, nullable=False)
+    # Pending scrap quantity (待报废数量)
+    pending_scrap: Mapped[int] = mapped_column(default=0, nullable=False)
+
+
+class EmployeeToolHolding(db.Model):
+    """Tracks how many of each tool SKU an employee is currently holding."""
+
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employee.id"), primary_key=True
+    )
+    itemSKU_id: Mapped[int] = mapped_column(ForeignKey("item_sku.id"), primary_key=True)
+    count: Mapped[int] = mapped_column(default=0, nullable=False)
+    employee: Mapped["Employee"] = relationship(back_populates="tool_holdings")
+    itemSKU: Mapped["ItemSKU"] = relationship("ItemSKU")
+
+
+class ToolReceiptType(enum.Enum):
+    REQUISITION = 0  # 领用
+    EXCHANGE = 1  # 更换
+    RETURN = 2  # 归还
+    SCRAP = 3  # 报废
+
+
+class ToolReceipt(db.Model):
+    """A batch tool operation (requisition / exchange / return / scrap)."""
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    type: Mapped[ToolReceiptType] = mapped_column(Enum(ToolReceiptType), nullable=False)
+    # Employee who is receiving / returning the tools (null for scrap)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employee.id"), nullable=True)
+    employee: Mapped["Employee"] = relationship("Employee")
+    # Staff member who performed the operation
+    operator_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    operator: Mapped["User"] = relationship("User")
+    date: Mapped[datetime] = mapped_column(default=datetime.now, nullable=False)
+    # Whether this confirmation slip has been printed
+    printed: Mapped[bool] = mapped_column(default=False, nullable=False)
+    # Linked stockout receipt generated for scrap operations
+    receipt_id: Mapped[int] = mapped_column(ForeignKey("receipt.id"), nullable=True)
+    receipt: Mapped["Receipt"] = relationship("Receipt")
+    # Individual tool lines
+    transactions: Mapped[List["ToolTransaction"]] = relationship(
+        back_populates="tool_receipt"
+    )
+
+
+class ToolTransaction(db.Model):
+    """One line in a ToolReceipt: which SKU and how many."""
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    tool_receipt_id: Mapped[int] = mapped_column(
+        ForeignKey("tool_receipt.id"), nullable=False
+    )
+    tool_receipt: Mapped["ToolReceipt"] = relationship(back_populates="transactions")
+    itemSKU_id: Mapped[int] = mapped_column(ForeignKey("item_sku.id"), nullable=False)
+    itemSKU: Mapped["ItemSKU"] = relationship("ItemSKU")
+    count: Mapped[int] = mapped_column(nullable=False)
+    # Employee who is receiving / returning the tools (null for scrap)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employee.id"), nullable=True)
+    employee: Mapped["Employee"] = relationship(back_populates="tool_transactions")

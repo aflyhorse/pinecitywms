@@ -7,6 +7,7 @@
     {% block head %}
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="description" content="青松城设备科仓库管理系统 - 用于管理设备和物品的仓库管理系统">
     <meta name="keywords" content="仓库管理,设备管理,物品管理,青松城,设备科">
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
@@ -37,6 +38,15 @@
                     {{ render_nav_item('item', '物品管理') }}
                     {{ render_nav_item('statistics_fee', '费用统计') }}
                     {% endif %}
+                    {{ render_nav_item('employees', '人员管理') }}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">工具管理</a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('tool_requisition') }}">工具领用</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('tool_scrap') }}">工具报废</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('tool_print') }}">确认单打印</a></li>
+                        </ul>
+                    </li>
                     {% endif %}
                 </ul>
             </div>

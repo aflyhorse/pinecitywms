@@ -188,3 +188,36 @@ class RevokeReceiptForm(FlaskForm):
         "撤销原因", validators=[DataRequired(), Length(1, 200)], render_kw={"rows": "3"}
     )
     submit = SubmitField("撤销单据")
+
+
+class EmployeeCreateForm(FlaskForm):
+    employee_id = StringField(
+        "工号",
+        validators=[DataRequired(), Length(1, 20)],
+        render_kw={"placeholder": "工号"},
+    )
+    name = StringField(
+        "姓名",
+        validators=[DataRequired(), Length(1, 30)],
+        render_kw={"placeholder": "姓名"},
+    )
+    user_id = SelectField("所属班组", coerce=int, validators=[InputRequired()])
+    submit = SubmitField("新增员工")
+
+
+class ToolRequisitionForm(FlaskForm):
+    """Select employee and submit tool requisition."""
+
+    employee_id = SelectField("选择员工", coerce=int, validators=[InputRequired()])
+    submit = SubmitField("领用")
+
+
+class ToolReturnForm(FlaskForm):
+    """Select action type for tool return / exchange."""
+
+    action = SelectField(
+        "操作",
+        choices=[("return", "归还"), ("exchange", "更换")],
+        validators=[InputRequired()],
+    )
+    submit = SubmitField("确认")

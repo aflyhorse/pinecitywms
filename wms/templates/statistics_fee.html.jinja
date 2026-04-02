@@ -16,6 +16,12 @@
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary w-100">查询</button>
                 </div>
+                <div class="col-auto align-self-end mb-1">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="tool_only" value="1" id="tool_only_fee" {% if tool_only %}checked{% endif %}>
+                        <label class="form-check-label" for="tool_only_fee">仅查询工具</label>
+                    </div>
+                </div>
                 <div class="col-md-1">
                     <button type="button" class="btn btn-outline-secondary w-100" id="current-year">本年</button>
                 </div>

@@ -1,0 +1,67 @@
+{% extends "base.html.jinja" %}
+{% from 'bootstrap5/utils.html' import render_icon %}
+{% block content %}
+<div class="container p-5 my-5">
+    <h2 class="mb-4">工具报废</h2>
+    {% if pending %}
+    <form method="post" id="scrap-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">待报废工具列表</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="select-all" class="form-check-input" checked>
+                                </th>
+                                <th>工具名称</th>
+                                <th>品牌</th>
+                                <th>规格</th>
+                                <th style="width: 130px;">待报废数量</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ti in pending %}
+                            <tr>
+                                <td class="text-center">
+                                    <input type="checkbox" name="sku_ids[]" value="{{ ti.itemSKU.id }}"
+                                        class="form-check-input sku-checkbox" checked>
+                                </td>
+                                <td>{{ ti.itemSKU.item.name }}</td>
+                                <td>{{ ti.itemSKU.brand }}</td>
+                                <td>{{ ti.itemSKU.spec }}</td>
+                                <td class="text-center text-danger fw-bold">{{ ti.pending_scrap }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex gap-3">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('确定要报废所选工具吗？系统将自动生成出库单。')">
+                {{ render_icon('trash3') }} 确认报废
+            </button>
+        </div>
+    </form>
+    {% else %}
+    <div class="alert alert-info">当前无待报废工具。</div>
+    {% endif %}
+</div>
+{% endblock content %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    const selectAll = document.getElementById('select-all');
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            document.querySelectorAll('.sku-checkbox').forEach(cb => cb.checked = this.checked);
+        });
+    }
+</script>
+{% endblock scripts %}

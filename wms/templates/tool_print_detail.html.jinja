@@ -1,0 +1,95 @@
+{% extends "base.html.jinja" %}
+{% from 'bootstrap5/utils.html' import render_icon %}
+{% block content %}
+{% set type_labels = {
+    'REQUISITION': '工具领用确认单',
+    'EXCHANGE': '工具更换确认单',
+    'RETURN': '工具归还确认单',
+    'SCRAP': '工具报废确认单'
+} %}
+<div class="container p-5 my-5" id="print-area">
+    <div class="text-center mb-4">
+        <h3>{{ type_labels[tool_receipt.type.name] }}</h3>
+        <p class="text-secondary">青松城设备科</p>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <strong>日期：</strong>{{ tool_receipt.date.strftime('%Y-%m-%d %H:%M') }}
+        </div>
+        <div class="col-md-4">
+            <strong>员工：</strong>
+            {% if tool_receipt.employee %}
+            {{ tool_receipt.employee.name }}（{{ tool_receipt.employee.employee_id }}）
+            {% else %}—{% endif %}
+        </div>
+        <div class="col-md-4">
+            <strong>班组：</strong>
+            {% if tool_receipt.employee and tool_receipt.employee.user %}
+            {{ tool_receipt.employee.user.nickname }}
+            {% else %}—{% endif %}
+        </div>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <strong>操作员：</strong>{{ tool_receipt.operator.nickname }}
+        </div>
+        <div class="col-md-4">
+            <strong>单据编号：</strong>#{{ tool_receipt.id }}
+        </div>
+    </div>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>序号</th>
+                <th>工具名称</th>
+                <th>品牌</th>
+                <th>规格</th>
+                <th>数量</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tx in tool_receipt.transactions %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ tx.itemSKU.item.name }}</td>
+                <td>{{ tx.itemSKU.brand }}</td>
+                <td>{{ tx.itemSKU.spec }}</td>
+                <td>{{ tx.count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="row mt-5">
+        <div class="col-md-4 text-center">
+            <p>领用人签名：_______________</p>
+        </div>
+        <div class="col-md-4 text-center">
+            <p>班组长签名：_______________</p>
+        </div>
+    </div>
+</div>
+<div class="container no-print">
+    <button onclick="window.print()" class="btn btn-primary me-2">
+        {{ render_icon('printer') }} 打印
+    </button>
+    <form method="post" action="{{ url_for('tool_print_toggle_printed', receipt_id=tool_receipt.id) }}" class="d-inline me-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% if tool_receipt.printed %}
+        <button type="submit" class="btn btn-outline-warning">取消“已打印”状态</button>
+        {% else %}
+        <button type="submit" class="btn btn-outline-success">确认已打印</button>
+        {% endif %}
+    </form>
+    <a href="{{ url_for('tool_print') }}" class="btn btn-outline-secondary">返回</a>
+</div>
+{% endblock content %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    @media print {
+        .no-print, nav { display: none !important; }
+        body { margin: 0; }
+    }
+</style>
+{% endblock styles %}

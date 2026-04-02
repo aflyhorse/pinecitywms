@@ -233,6 +233,7 @@ def statistics_fee():
     # Set default date range to current month if not provided
     start_date = request.args.get("start_date", "")
     end_date = request.args.get("end_date", "")
+    tool_only = request.args.get("tool_only") == "1"
 
     # If no dates are provided, default to current month
     if not start_date and not end_date:
@@ -290,6 +291,9 @@ def statistics_fee():
         Receipt.type == ReceiptType.STOCKOUT,
         Receipt.revoked.is_(False),
     ]
+
+    if tool_only:
+        filter_conditions.append(Receipt.is_tool.is_(True))
 
     if start_date:
         start_datetime = datetime.strptime(
@@ -369,6 +373,7 @@ def statistics_fee():
         stats_data=stats_data,
         current_year=current_year,
         current_month=current_month,
+        tool_only=tool_only,
     )
 
 
@@ -387,6 +392,7 @@ def statistics_usage():
     item_name = request.args.get("item_name", "")
     brand = request.args.get("brand", "")
     spec = request.args.get("spec", "")
+    tool_only = request.args.get("tool_only") == "1"
 
     # If no dates are provided, default to current month
     if not start_date and not end_date:
@@ -523,6 +529,8 @@ def statistics_usage():
         query = query.filter(ItemSKU.brand.ilike(f"%{brand}%"))
     if spec:
         query = query.filter(ItemSKU.spec.ilike(f"%{spec}%"))
+    if tool_only:
+        query = query.filter(Item.is_tool.is_(True))
 
     # Get results
     usage_data = query.all()
@@ -546,6 +554,7 @@ def statistics_usage():
         spec=spec,
         total_quantity=total_quantity,
         total_value=total_value,
+        tool_only=tool_only,
     )
 
 
