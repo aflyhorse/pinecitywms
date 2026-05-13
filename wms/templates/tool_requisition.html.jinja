@@ -3,8 +3,28 @@
 {% block content %}
 <div class="container p-5 my-5">
     <h2 class="mb-4">工具领用</h2>
+    {% if scope_users|length > 1 %}
+    <form method="get" class="mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">查看用户</label>
+                <select class="form-select" name="user_id" onchange="this.form.submit()">
+                    {% for u in scope_users %}
+                    <option value="{{ u.id }}" {% if u.id == selected_scope_user_id %}selected{% endif %}>{{ u.nickname }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+
+    {% if not can_operate %}
+    <div class="alert alert-info">审核员仅可按用户查看领用数据，不可提交领用。</div>
+    {% endif %}
+
     <form method="post" id="requisition-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="scope_user_id" value="{{ selected_scope_user_id }}">
         <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0">在库工具列表</h5>
@@ -14,9 +34,11 @@
                     <table class="table table-hover table-bordered mb-0">
                         <thead>
                             <tr>
+                                {% if can_operate %}
                                 <th style="width: 40px;">
                                     <input type="checkbox" id="select-all" class="form-check-input">
                                 </th>
+                                {% endif %}
                                 <th>工具名称</th>
                                 <th>品牌</th>
                                 <th>规格</th>
@@ -27,23 +49,25 @@
                         <tbody>
                             {% for ti in tool_inventory %}
                             <tr>
+                                {% if can_operate %}
                                 <td class="text-center">
                                     <input type="checkbox" name="sku_ids[]" value="{{ ti.itemSKU.id }}"
                                         class="form-check-input sku-checkbox">
                                 </td>
+                                {% endif %}
                                 <td>{{ ti.itemSKU.item.name }}</td>
                                 <td>{{ ti.itemSKU.brand }}</td>
                                 <td>{{ ti.itemSKU.spec }}</td>
                                 <td class="text-center">{{ ti.count }}</td>
                                 <td>
                                     <input type="number" name="qty_{{ ti.itemSKU.id }}" value="1"
-                                        min="1" max="{{ ti.count }}"
+                                        min="0" max="{{ ti.count }}"
                                         class="form-control form-control-sm qty-input">
                                 </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="text-center text-secondary py-4">暂无在库工具</td>
+                                <td colspan="{{ 6 if can_operate else 5 }}" class="text-center text-secondary py-4">暂无在库工具</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -66,9 +90,11 @@
                         </select>
                     </div>
                     <div class="col-auto">
+                        {% if can_operate %}
                         <button type="submit" class="btn btn-primary">
                             {{ render_icon('bag-plus') }} 确认领用
                         </button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -80,8 +106,11 @@
 {% block scripts %}
 {{ super() }}
 <script>
-    document.getElementById('select-all').addEventListener('change', function () {
-        document.querySelectorAll('.sku-checkbox').forEach(cb => cb.checked = this.checked);
-    });
+    const selectAll = document.getElementById('select-all');
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            document.querySelectorAll('.sku-checkbox').forEach(cb => cb.checked = this.checked);
+        });
+    }
 </script>
 {% endblock scripts %}

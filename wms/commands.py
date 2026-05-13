@@ -85,6 +85,12 @@ def initdb(drop):
         db.session.add(user)
         db.session.add(warehouse)
 
+    auditor = User(
+        username="shenhe", nickname="审核员", is_admin=False, is_auditor=True
+    )
+    auditor.set_password("shenhe")
+    db.session.add(auditor)
+
     warehouse = Warehouse(name="回收仓库", is_public=True)
     db.session.add(warehouse)
 

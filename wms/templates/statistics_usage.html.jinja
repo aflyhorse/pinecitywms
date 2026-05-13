@@ -9,7 +9,7 @@
                 <div class="col-md-2">
                     <label class="form-label">仓库</label>
                     <select name="warehouse" class="form-select" onchange="this.form.submit()">
-                        {% if current_user.is_admin %}
+                        {% if current_user.can_view_all_warehouses %}
                         <option value="">全部仓库</option>
                         {% endif %}
                         {% for warehouse in warehouses %}

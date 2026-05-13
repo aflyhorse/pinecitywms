@@ -20,11 +20,15 @@
             <strong>员工：</strong>
             {% if tool_receipt.employee %}
             {{ tool_receipt.employee.name }}（{{ tool_receipt.employee.employee_id }}）
+            {% elif tool_receipt.type.name == 'SCRAP' %}
+            {{ tool_receipt.target_user.nickname if tool_receipt.target_user else tool_receipt.operator.nickname }}
             {% else %}—{% endif %}
         </div>
         <div class="col-md-4">
             <strong>班组：</strong>
-            {% if tool_receipt.employee and tool_receipt.employee.user %}
+            {% if tool_receipt.type.name == 'SCRAP' and tool_receipt.target_user %}
+            {{ tool_receipt.target_user.nickname }}
+            {% elif tool_receipt.employee and tool_receipt.employee.user %}
             {{ tool_receipt.employee.user.nickname }}
             {% else %}—{% endif %}
         </div>
@@ -72,6 +76,7 @@
     <button onclick="window.print()" class="btn btn-primary me-2">
         {{ render_icon('printer') }} 打印
     </button>
+    {% if not current_user.is_auditor %}
     <form method="post" action="{{ url_for('tool_print_toggle_printed', receipt_id=tool_receipt.id) }}" class="d-inline me-2">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         {% if tool_receipt.printed %}
@@ -80,6 +85,7 @@
         <button type="submit" class="btn btn-outline-success">确认已打印</button>
         {% endif %}
     </form>
+    {% endif %}
     <a href="{{ url_for('tool_print') }}" class="btn btn-outline-secondary">返回</a>
 </div>
 {% endblock content %}

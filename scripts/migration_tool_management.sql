@@ -1,5 +1,5 @@
--- Migration: Add tool management features
--- Date: 2026-02-26
+-- Migration: Add tool management features and auditor role capability
+-- Dates: 2026-02-26, 2026-04-07
 -- Column names match SQLAlchemy's default (attribute name used as-is).
 
 -- 1. Add is_tool flag to item table
@@ -55,3 +55,15 @@ CREATE TABLE tool_transaction (
     count INTEGER NOT NULL,
     employee_id INTEGER REFERENCES employee(id)
 );
+
+-- 8. Add auditor role capability and tool receipt audit metadata
+ALTER TABLE user ADD COLUMN is_auditor BOOLEAN NOT NULL DEFAULT FALSE;
+UPDATE user SET is_auditor = FALSE WHERE is_auditor IS NULL;
+
+ALTER TABLE tool_receipt ADD COLUMN target_user_id INTEGER REFERENCES user(id);
+ALTER TABLE tool_receipt ADD COLUMN confirmed_by_id INTEGER REFERENCES user(id);
+ALTER TABLE tool_receipt ADD COLUMN confirmed_at DATETIME;
+
+-- Optional: create an initial auditor account (uncomment and adjust as needed).
+-- INSERT INTO user (username, nickname, password_hash, is_admin, is_auditor)
+-- VALUES ('auditor', '审核员', '<replace-with-hash>', FALSE, TRUE);

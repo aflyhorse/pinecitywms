@@ -1,3 +1,4 @@
+
 import os
 import pytest
 
@@ -8,6 +9,9 @@ os.environ["TESTING"] = "True"
 from wms import app, db  # noqa : E402
 from wms.models import User, Item, ItemSKU, Warehouse, Area, Department  # noqa : E402
 import uuid  # noqa : E402
+
+# Register test routes for decorator coverage testing
+# These must be registered before the first request is handled
 
 
 @pytest.fixture(scope="function")
@@ -34,6 +38,21 @@ def test_user(client):
 def regular_user(client):
     with app.app_context():
         user = User(username="testuser", nickname="Test User", is_admin=False)
+        user.set_password("password123")
+        db.session.add(user)
+        db.session.commit()
+        return user
+
+
+@pytest.fixture
+def auditor_user(client):
+    with app.app_context():
+        user = User(
+            username="testauditor",
+            nickname="Test Auditor",
+            is_admin=False,
+            is_auditor=True,
+        )
         user.set_password("password123")
         db.session.add(user)
         db.session.commit()
@@ -70,6 +89,20 @@ def auth_client(client, test_user):
         client.post(
             "/login",
             data={"username": "testadmin", "password": "password123", "remember": "y"},
+        )
+        return client
+
+
+@pytest.fixture
+def auditor_client(client, auditor_user):
+    with app.app_context():
+        client.post(
+            "/login",
+            data={
+                "username": "testauditor",
+                "password": "password123",
+                "remember": "y",
+            },
         )
         return client
 

@@ -19,6 +19,7 @@ from sqlalchemy import and_
 from io import BytesIO
 import pandas as pd
 from datetime import datetime
+import uuid
 
 
 def _sync_tool_inventory_stockin(receipt: Receipt):
@@ -41,11 +42,17 @@ def _sync_tool_inventory_stockin(receipt: Receipt):
     db.session.commit()
 
 
+def _escape_like(val: str) -> str:
+    if val is None:
+        return val
+    return val.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 @app.route("/inventory", methods=["GET", "POST"])
 @login_required
 def inventory():
     # Admin can see inventory of all warehouses
-    if current_user.is_admin:
+    if current_user.can_view_all_warehouses:
         warehouses = Warehouse.query.all()
     else:
         # Regular users can only see public warehouses and their own warehouses
@@ -67,14 +74,15 @@ def inventory():
     else:
         # Try to get warehouse from session if not in query params
         if "last_warehouse_id" in session and warehouses:
-            warehouse_exists = any(
-                w.id == session["last_warehouse_id"] for w in warehouses
-            )
-            if warehouse_exists:
-                selected_warehouse = next(
-                    (w for w in warehouses if w.id == session["last_warehouse_id"]),
-                    None,
-                )
+            last_id = session["last_warehouse_id"]
+            # Validate that the warehouse still exists and is accessible to the user
+            wh = db.session.get(Warehouse, last_id)
+            if wh and (
+                current_user.can_view_all_warehouses
+                or wh.is_public
+                or wh.owner_id == current_user.id
+            ):
+                selected_warehouse = wh
 
         # If still no warehouse, use first one
         if not selected_warehouse:
@@ -150,11 +158,14 @@ def inventory():
 
         # Apply filters if there's search data
         if form.name.data:
-            query = query.filter(Item.name.ilike(f"%{form.name.data}%"))
+            esc = _escape_like(form.name.data)
+            query = query.filter(Item.name.ilike(f"%{esc}%", escape="\\"))
         if form.brand.data:
-            query = query.filter(ItemSKU.brand.ilike(f"%{form.brand.data}%"))
+            esc = _escape_like(form.brand.data)
+            query = query.filter(ItemSKU.brand.ilike(f"%{esc}%", escape="\\"))
         if form.spec.data:
-            query = query.filter(ItemSKU.spec.ilike(f"%{form.spec.data}%"))
+            esc = _escape_like(form.spec.data)
+            query = query.filter(ItemSKU.spec.ilike(f"%{esc}%", escape="\\"))
         if form.sku_id.data:
             try:
                 sku_id_int = int(form.sku_id.data)
@@ -255,9 +266,18 @@ def stockin():
                     )
 
             db.session.commit()
-            receipt.update_warehouse_item_skus()
-            db.session.commit()
-            _sync_tool_inventory_stockin(receipt)
+            try:
+                receipt.update_warehouse_item_skus()
+                db.session.commit()
+                _sync_tool_inventory_stockin(receipt)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                # If inventory update fails, roll back the whole operation to avoid inconsistency
+                flash(f"处理库存更新时出错: {e}", "danger")
+                return render_template(
+                    "inventory_stockin.html.jinja", form=form, items=items
+                )
 
             # Save the selected warehouse to session
             session["last_warehouse_id"] = form.warehouse.data
@@ -289,6 +309,10 @@ def stockin():
 @app.route("/stockout", methods=["GET", "POST"])
 @login_required
 def stockout():
+    if current_user.is_auditor:
+        flash("审核员无权执行出库。", "danger")
+        return redirect(url_for("inventory"))
+
     form = StockOutForm()
 
     # Get all areas and departments
@@ -296,7 +320,7 @@ def stockout():
     departments = Department.query.all()
 
     # Get warehouses accessible by the current user
-    if current_user.is_admin:
+    if current_user.can_view_all_warehouses:
         warehouses = Warehouse.query.all()
     else:
         warehouses = Warehouse.query.filter(
@@ -417,7 +441,7 @@ def stockout():
             )
 
         receipt = Receipt(
-            refcode=f"SO-{datetime.now().strftime('%Y%m%d%H%M%S%f')}",
+            refcode=f"SO-{datetime.now().strftime('%Y%m%d%H%M%S%f')}-{uuid.uuid4().hex[:6]}",
             operator=current_user,
             warehouse_id=selected_warehouse.id,
             type=ReceiptType.STOCKOUT,
@@ -525,7 +549,7 @@ def stockout():
 @login_required
 def inventory_export():
     # Admin can see inventory of all warehouses
-    if current_user.is_admin:
+    if current_user.can_view_all_warehouses:
         warehouses = Warehouse.query.all()
     else:
         # Regular users can only see public warehouses and their own warehouses

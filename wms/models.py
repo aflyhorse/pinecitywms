@@ -17,8 +17,11 @@ class User(db.Model, UserMixin):
     )
     nickname: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(162))
-    is_admin: Mapped[bool]
-    receipts: Mapped[List["Receipt"]] = relationship(back_populates="operator")
+    is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
+    is_auditor: Mapped[bool] = mapped_column(default=False, nullable=False)
+    receipts: Mapped[List["Receipt"]] = relationship(
+        back_populates="operator", foreign_keys="Receipt.operator_id"
+    )
     warehouse: Mapped["Warehouse"] = relationship(back_populates="owner", uselist=False)
     employees: Mapped[List["Employee"]] = relationship(back_populates="user")
 
@@ -27,6 +30,26 @@ class User(db.Model, UserMixin):
 
     def validate_password(self, password: str):
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def can_view_all_warehouses(self) -> bool:
+        return self.is_admin or self.is_auditor
+
+    @property
+    def can_view_all_tool_groups(self) -> bool:
+        return self.is_admin or self.is_auditor
+
+    @property
+    def can_operate_inventory(self) -> bool:
+        return not self.is_auditor
+
+    @property
+    def can_manage_employees(self) -> bool:
+        return not self.is_auditor
+
+    @property
+    def can_generate_scrap_confirmation(self) -> bool:
+        return self.is_admin or self.is_auditor
 
 
 class Item(db.Model):
@@ -67,7 +90,9 @@ class ItemSKU(db.Model):
     # Whether this SKU is disabled/deprecated
     disabled: Mapped[bool] = mapped_column(default=False, nullable=False)
     # Related transactions and warehouse inventory
-    trasanctions: Mapped[List["Transaction"]] = relationship(back_populates="itemSKU")
+    transactions: Mapped[List["Transaction"]] = relationship(
+        "Transaction", back_populates="itemSKU"
+    )
     warehouses: Mapped[List["WarehouseItemSKU"]] = relationship(
         "WarehouseItemSKU", back_populates="itemSKU"
     )
@@ -96,7 +121,7 @@ class Transaction(db.Model):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     # Link to the SKU being transacted
     itemSKU_id: Mapped[int] = mapped_column(ForeignKey("item_sku.id"))
-    itemSKU: Mapped[ItemSKU] = relationship(back_populates="trasanctions")
+    itemSKU: Mapped[ItemSKU] = relationship(back_populates="transactions")
     # Transaction details
     count: Mapped[int]
     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
@@ -155,33 +180,38 @@ class Receipt(db.Model):
     def update_warehouse_item_skus(self):
         # Update warehouse inventory after a receipt is processed
         for transaction in self.transactions:
+            # Attempt to lock the warehouse_item_sku row to prevent concurrent updates
             warehouse_item_sku = (
                 db.session.query(WarehouseItemSKU)
+                .with_for_update()
                 .filter_by(
                     warehouse_id=self.warehouse_id, itemSKU_id=transaction.itemSKU_id
                 )
                 .first()
             )
+            # Fetch related SKU and warehouse once to avoid duplicate queries
+            item_sku = db.session.get(ItemSKU, transaction.itemSKU_id)
+            warehouse_obj = db.session.get(Warehouse, self.warehouse_id)
             if warehouse_item_sku:
                 if self.type == ReceiptType.STOCKIN:
-                    # Initial its average price if it's not set
-                    if warehouse_item_sku.average_price == 0:
+                    # Initialize average price if it's not set
+                    if warehouse_item_sku.average_price is None or Decimal(
+                        str(warehouse_item_sku.average_price)
+                    ) == Decimal("0.00"):
                         warehouse_item_sku.average_price = float(transaction.price)
-                    # Update average price and count for stock in
+                    # Update average price and count for stock in using Decimal
                     total_count = warehouse_item_sku.count + transaction.count
                     if total_count != 0:
-                        # Convert counts to Decimal for precise arithmetic
                         dec_total_count = Decimal(str(total_count))
                         dec_wh_count = Decimal(str(warehouse_item_sku.count))
                         dec_trans_count = Decimal(str(transaction.count))
-                        warehouse_item_sku.average_price = float(
-                            (
-                                dec_wh_count
-                                * Decimal(str(warehouse_item_sku.average_price))
-                                + dec_trans_count * transaction.price
-                            )
-                            / dec_total_count
-                        )
+                        dec_wh_price = Decimal(str(warehouse_item_sku.average_price))
+                        dec_result = (
+                            dec_wh_count * dec_wh_price
+                            + dec_trans_count * transaction.price
+                        ) / dec_total_count
+                        # store as float for compatibility
+                        warehouse_item_sku.average_price = float(dec_result)
                     else:
                         warehouse_item_sku.average_price = 0
                     warehouse_item_sku.count = total_count
@@ -192,14 +222,16 @@ class Receipt(db.Model):
                     # Check if this would cause negative inventory
                     new_count = warehouse_item_sku.count + transaction.count
                     if new_count < 0:
-                        item_name = db.session.get(
-                            ItemSKU, transaction.itemSKU_id
-                        ).item.name
-                        brand = db.session.get(ItemSKU, transaction.itemSKU_id).brand
-                        spec = db.session.get(ItemSKU, transaction.itemSKU_id).spec
-                        warehouse_name = db.session.get(
-                            Warehouse, self.warehouse_id
-                        ).name
+                        item_name = (
+                            item_sku.item.name
+                            if item_sku and item_sku.item
+                            else "Unknown"
+                        )
+                        brand = item_sku.brand if item_sku else ""
+                        spec = item_sku.spec if item_sku else ""
+                        warehouse_name = (
+                            warehouse_obj.name if warehouse_obj else "Unknown"
+                        )
                         raise ValueError(
                             f"库存不足: {item_name} {brand} {spec} 在 {warehouse_name} 仓库中库存为 {warehouse_item_sku.count}, "
                             f"无法扣减 {abs(transaction.count)} 件"
@@ -211,12 +243,12 @@ class Receipt(db.Model):
                 if self.type == ReceiptType.STOCKOUT or (
                     self.type == ReceiptType.TAKESTOCK and transaction.count < 0
                 ):
-                    item_name = db.session.get(
-                        ItemSKU, transaction.itemSKU_id
-                    ).item.name
-                    brand = db.session.get(ItemSKU, transaction.itemSKU_id).brand
-                    spec = db.session.get(ItemSKU, transaction.itemSKU_id).spec
-                    warehouse_name = db.session.get(Warehouse, self.warehouse_id).name
+                    item_name = (
+                        item_sku.item.name if item_sku and item_sku.item else "Unknown"
+                    )
+                    brand = item_sku.brand if item_sku else ""
+                    spec = item_sku.spec if item_sku else ""
+                    warehouse_name = warehouse_obj.name if warehouse_obj else "Unknown"
                     raise ValueError(
                         f"物品不存在于仓库: {item_name} {brand} {spec} 不在 {warehouse_name} 仓库中"
                     )
@@ -226,9 +258,7 @@ class Receipt(db.Model):
                     warehouse_id=self.warehouse_id,
                     itemSKU_id=transaction.itemSKU_id,
                     count=transaction.count,
-                    average_price=float(
-                        transaction.price
-                    ),  # Convert to float for storage
+                    average_price=float(transaction.price),
                 )
                 db.session.add(warehouse_item_sku)
         db.session.commit()
@@ -308,9 +338,16 @@ class ToolReceipt(db.Model):
     # Employee who is receiving / returning the tools (null for scrap)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employee.id"), nullable=True)
     employee: Mapped["Employee"] = relationship("Employee")
+    # Target user for scrap confirmations (the group whose tools were scrapped)
+    target_user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=True)
+    target_user: Mapped["User"] = relationship("User", foreign_keys=[target_user_id])
     # Staff member who performed the operation
     operator_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
-    operator: Mapped["User"] = relationship("User")
+    operator: Mapped["User"] = relationship("User", foreign_keys=[operator_id])
+    # Auditor/admin who confirmed a scrap request
+    confirmed_by_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=True)
+    confirmed_by: Mapped["User"] = relationship("User", foreign_keys=[confirmed_by_id])
+    confirmed_at: Mapped[datetime] = mapped_column(nullable=True)
     date: Mapped[datetime] = mapped_column(default=datetime.now, nullable=False)
     # Whether this confirmation slip has been printed
     printed: Mapped[bool] = mapped_column(default=False, nullable=False)

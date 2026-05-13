@@ -2,7 +2,7 @@ from flask import render_template, url_for, redirect, flash, request, jsonify
 from flask_login import login_required
 from sqlalchemy import select, distinct, desc
 from wms import app, db
-from wms.utils import admin_required
+from wms.utils import admin_required, _escape_like
 from wms.models import Item, ItemSKU, ToolInventory
 from wms.forms import ItemSearchForm, ItemCreateForm
 
@@ -42,11 +42,14 @@ def item():
 
     # Apply filters if there's search data
     if form.name.data:
-        query = query.filter(Item.name.ilike(f"%{form.name.data}%"))
+        esc = _escape_like(form.name.data)
+        query = query.filter(Item.name.ilike(f"%{esc}%", escape="\\"))
     if form.brand.data:
-        query = query.filter(ItemSKU.brand.ilike(f"%{form.brand.data}%"))
+        esc = _escape_like(form.brand.data)
+        query = query.filter(ItemSKU.brand.ilike(f"%{esc}%", escape="\\"))
     if form.spec.data:
-        query = query.filter(ItemSKU.spec.ilike(f"%{form.spec.data}%"))
+        esc = _escape_like(form.spec.data)
+        query = query.filter(ItemSKU.spec.ilike(f"%{esc}%", escape="\\"))
     if form.sku_id.data:
         try:
             sku_id_int = int(form.sku_id.data)

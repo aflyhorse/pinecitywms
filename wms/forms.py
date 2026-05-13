@@ -183,6 +183,25 @@ class PasswordChangeForm(FlaskForm):
             raise ValidationError("您只能修改自己的密码。")
 
 
+class AccountCreateForm(FlaskForm):
+    username = StringField("用户名", validators=[DataRequired(), Length(1, 20)])
+    nickname = StringField("昵称/班组名", validators=[DataRequired(), Length(1, 20)])
+    role = SelectField(
+        "权限",
+        choices=[("user", "用户"), ("auditor", "审核员"), ("admin", "管理员")],
+        validators=[DataRequired()],
+    )
+    password = PasswordField("初始密码", validators=[DataRequired(), Length(1, 40)])
+    confirm_password = PasswordField(
+        "确认密码",
+        validators=[
+            DataRequired(),
+            EqualTo("password", message="两次输入的密码必须相同"),
+        ],
+    )
+    submit = SubmitField("创建账户")
+
+
 class RevokeReceiptForm(FlaskForm):
     reason = TextAreaField(
         "撤销原因", validators=[DataRequired(), Length(1, 200)], render_kw={"rows": "3"}

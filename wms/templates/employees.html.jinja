@@ -16,9 +16,11 @@
                             <label class="form-check-label" for="include_resigned">包括已离职员工</label>
                         </div>
                     </form>
+                    {% if current_user.can_manage_employees %}
                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
                         {{ render_icon('person-plus') }} 新增员工
                     </button>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -27,9 +29,21 @@
                 <table class="table table-hover table-bordered">
                     <thead>
                         <tr>
-                            <th>工号</th>
-                            <th>姓名</th>
-                            <th>所属班组</th>
+                            <th>工号 <button type="button" class="btn btn-link text-decoration-none p-0 sort-btn"
+                                    data-sort-key="employee_id" aria-label="按工号排序">
+                                     {{ render_icon('sort-numeric-down') }}
+                                </button>
+                            </th>
+                            <th>姓名 <button type="button" class="btn btn-link text-decoration-none p-0 sort-btn"
+                                    data-sort-key="name" aria-label="按姓名排序">
+                                     {{ render_icon('sort-alpha-down') }}
+                                </button>
+                            </th>
+                            <th>所属班组 <button type="button" class="btn btn-link text-decoration-none p-0 sort-btn"
+                                    data-sort-key="group" aria-label="按班组排序">
+                                     {{ render_icon('sort-alpha-down') }}
+                                </button>
+                            </th>
                             <th>状态</th>
                             <th style="width: 80px;"></th>
                         </tr>
@@ -53,7 +67,7 @@
                                 {% endif %}
                             </td>
                             <td class="text-center">
-                                {% if not emp.is_resigned %}
+                                {% if not emp.is_resigned and current_user.can_manage_employees %}
                                 <form method="post" action="{{ url_for('employee_resign', employee_id=emp.id) }}"
                                     class="resign-form" data-name="{{ emp.name }}">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -77,6 +91,7 @@
 <!-- Add Employee Modal -->
 <div class="modal fade" id="addEmployeeModal" tabindex="-1" aria-labelledby="addEmployeeModalLabel"
     aria-hidden="true">
+    {% if current_user.can_manage_employees %}
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="post">
@@ -110,6 +125,7 @@
             </form>
         </div>
     </div>
+    {% endif %}
 </div>
 {% endblock content %}
 
@@ -122,6 +138,39 @@
             if (!confirm(`确定要将员工 "${name}" 标记为离职吗？`)) {
                 e.preventDefault();
             }
+        });
+    });
+
+    const tableBody = document.querySelector('table tbody');
+    const sortButtons = document.querySelectorAll('.sort-btn');
+    let currentSort = { key: null, asc: true };
+
+    function getSortValue(row, key) {
+        const cells = row.querySelectorAll('td');
+        if (key === 'employee_id') return cells[0]?.textContent.trim() || '';
+        if (key === 'name') return cells[1]?.textContent.trim() || '';
+        if (key === 'group') return cells[2]?.textContent.trim() || '';
+        return '';
+    }
+
+    sortButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (!tableBody) return;
+            const dataRows = Array.from(tableBody.querySelectorAll('tr')).filter(row => row.querySelectorAll('td').length >= 5);
+            if (dataRows.length <= 1) return;
+
+            const sortKey = btn.dataset.sortKey;
+            const sortAsc = currentSort.key === sortKey ? !currentSort.asc : true;
+            currentSort = { key: sortKey, asc: sortAsc };
+
+            dataRows.sort((a, b) => {
+                const aValue = getSortValue(a, sortKey);
+                const bValue = getSortValue(b, sortKey);
+                const compared = aValue.localeCompare(bValue, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' });
+                return sortAsc ? compared : -compared;
+            });
+
+            dataRows.forEach(row => tableBody.appendChild(row));
         });
     });
 </script>

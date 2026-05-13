@@ -1,8 +1,8 @@
-from flask import render_template, url_for, redirect, flash
+from flask import render_template, url_for, redirect, flash, request
 from flask_login import login_required, login_user, logout_user, current_user
 from wms import app, db
-from wms.models import User
-from wms.forms import LoginForm, PasswordChangeForm
+from wms.models import User, Warehouse
+from wms.forms import LoginForm, PasswordChangeForm, AccountCreateForm
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -40,6 +40,7 @@ def logout():
 @login_required
 def change_password():
     form = PasswordChangeForm()
+    account_form = AccountCreateForm(prefix="create") if current_user.is_admin else None
 
     # Populate username choices - admins see all users, regular users only see themselves
     if current_user.is_admin:
@@ -56,7 +57,48 @@ def change_password():
         ]
         form.username.render_kw = {"readonly": True}
 
-    if form.validate_on_submit():
+    if request.method == "POST" and account_form and "create-username" in request.form:
+        if account_form.validate():
+            username = account_form.username.data.strip()
+            nickname = account_form.nickname.data.strip()
+            role = account_form.role.data
+
+            if User.query.filter_by(username=username).first():
+                flash(f"用户名 {username} 已存在。", "danger")
+                return redirect(url_for("change_password"))
+            if User.query.filter_by(nickname=nickname).first():
+                flash(f"昵称 {nickname} 已存在。", "danger")
+                return redirect(url_for("change_password"))
+
+            new_user = User(
+                username=username,
+                nickname=nickname,
+                is_admin=(role == "admin"),
+                is_auditor=(role == "auditor"),
+            )
+            new_user.set_password(account_form.password.data)
+            db.session.add(new_user)
+            db.session.flush()
+
+            # Auditor accounts do not own warehouses.
+            if role != "auditor":
+                base_name = f"{nickname}仓库"
+                warehouse_name = base_name
+                suffix = 1
+                while Warehouse.query.filter_by(name=warehouse_name).first():
+                    suffix += 1
+                    warehouse_name = f"{base_name}{suffix}"
+                db.session.add(Warehouse(name=warehouse_name, owner_id=new_user.id))
+
+            db.session.commit()
+            flash(f"账户 {username} 创建成功。", "success")
+            return redirect(url_for("change_password"))
+
+    if (
+        request.method == "POST"
+        and "create-username" not in request.form
+        and form.validate()
+    ):
         target_user = User.query.filter_by(username=form.username.data).first()
         if not target_user:
             flash("用户不存在。", "danger")
@@ -83,4 +125,6 @@ def change_password():
         flash("密码修改成功。", "success")
         return redirect(url_for("index"))
 
-    return render_template("change_password.html.jinja", form=form)
+    return render_template(
+        "change_password.html.jinja", form=form, account_form=account_form
+    )

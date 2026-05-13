@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, send_file, flash
 from flask_login import login_required, current_user
 from wms import app, db
-from wms.utils import admin_required
+from wms.utils import admin_or_auditor_required
 from wms.models import (
     Receipt,
     ReceiptType,
@@ -20,6 +20,12 @@ from sqlalchemy import func, and_, select, distinct
 from io import BytesIO
 from decimal import Decimal
 import pandas as pd
+
+
+def _escape_like(val: str) -> str:
+    if val is None:
+        return val
+    return val.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 @app.route("/records", methods=["GET"])
@@ -49,7 +55,7 @@ def records():
     per_page = 20
 
     # Get warehouses accessible by the current user
-    if current_user.is_admin:
+    if current_user.can_view_all_warehouses:
         warehouses = Warehouse.query.all()
     else:
         # Regular users can only see public warehouses and their own warehouse
@@ -58,7 +64,7 @@ def records():
         ).all()
 
     # For regular users, ensure a warehouse is selected
-    if not current_user.is_admin and not warehouse_id and warehouses:
+    if not current_user.can_view_all_warehouses and not warehouse_id and warehouses:
         # Default to user's own warehouse if available, otherwise first available warehouse
         user_warehouse = next(
             (w for w in warehouses if w.owner_id == current_user.id), None
@@ -129,7 +135,7 @@ def records():
     )
 
     # Filter by user's warehouse access if not admin
-    if not current_user.is_admin:
+    if not current_user.can_view_all_warehouses:
         query = query.filter(
             (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
         )
@@ -146,19 +152,20 @@ def records():
     # Location info filter only applies to specific searches or all records
     if location_info:
         # Search area or department name if provided
+        esc = _escape_like(location_info)
         query = (
             query.outerjoin(Area)
             .outerjoin(Department)
             .filter(
-                (Area.name.ilike(f"%{location_info}%"))
-                | (Department.name.ilike(f"%{location_info}%"))
-                | (Receipt.location.ilike(f"%{location_info}%"))
+                (Area.name.ilike(f"%{esc}%", escape="\\"))
+                | (Department.name.ilike(f"%{esc}%", escape="\\"))
+                | (Receipt.location.ilike(f"%{esc}%", escape="\\"))
             )
         )
 
     if warehouse_id:
         # For non-admins, ensure they can only access their warehouse or public warehouses
-        if not current_user.is_admin:
+        if not current_user.can_view_all_warehouses:
             allowed_warehouse_ids = [w.id for w in warehouses]
             if int(warehouse_id) not in allowed_warehouse_ids:
                 warehouse_id = None
@@ -181,12 +188,14 @@ def records():
 
     # Add new filters for item name and SKU description
     if item_name:
-        query = query.filter(Item.name.ilike(f"%{item_name}%"))
+        esc = _escape_like(item_name)
+        query = query.filter(Item.name.ilike(f"%{esc}%", escape="\\"))
 
     if sku_desc:
+        esc = _escape_like(sku_desc)
         query = query.filter(
-            (ItemSKU.brand.ilike(f"%{sku_desc}%"))
-            | (ItemSKU.spec.ilike(f"%{sku_desc}%"))
+            (ItemSKU.brand.ilike(f"%{esc}%", escape="\\"))
+            | (ItemSKU.spec.ilike(f"%{esc}%", escape="\\"))
         )
 
     # Add precise filters for item_id and sku_id
@@ -223,7 +232,7 @@ def records():
 
 @app.route("/statistics_fee", methods=["GET"])
 @login_required
-@admin_required
+@admin_or_auditor_required
 def statistics_fee():
     # Get current year and month for default date range
     today = datetime.now()
@@ -411,7 +420,7 @@ def statistics_usage():
         end_date = f"{current_year}-{current_month:02d}-{last_day}"
 
     # Get warehouses accessible by the current user
-    if current_user.is_admin:
+    if current_user.can_view_all_warehouses:
         warehouses = Warehouse.query.all()
     else:
         warehouses = Warehouse.query.filter(
@@ -419,7 +428,7 @@ def statistics_usage():
         ).all()
 
     # For regular users, ensure a warehouse is selected
-    if not current_user.is_admin and not warehouse_id and warehouses:
+    if not current_user.can_view_all_warehouses and not warehouse_id and warehouses:
         user_warehouse = next(
             (w for w in warehouses if w.owner_id == current_user.id), None
         )
@@ -497,14 +506,14 @@ def statistics_usage():
         )
 
     # Filter by warehouse access if not admin
-    if not current_user.is_admin:
+    if not current_user.can_view_all_warehouses:
         query = query.join(Receipt.warehouse).filter(
             (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
         )
 
     # Apply filters
     if warehouse_id:
-        if not current_user.is_admin:
+        if not current_user.can_view_all_warehouses:
             allowed_warehouse_ids = [w.id for w in warehouses]
             if int(warehouse_id) not in allowed_warehouse_ids:
                 warehouse_id = None
@@ -572,7 +581,7 @@ def records_export():
     sku_desc = request.args.get("sku_desc")
 
     # Get warehouses accessible by the current user
-    if current_user.is_admin:
+    if current_user.can_view_all_warehouses:
         warehouses = Warehouse.query.all()
     else:
         warehouses = Warehouse.query.filter(
@@ -607,7 +616,7 @@ def records_export():
     )
 
     # Apply filters
-    if not current_user.is_admin:
+    if not current_user.can_view_all_warehouses:
         query = query.filter(
             (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
         )
@@ -629,7 +638,7 @@ def records_export():
             )
 
     if warehouse_id:
-        if not current_user.is_admin:
+        if not current_user.can_view_all_warehouses:
             allowed_warehouse_ids = [w.id for w in warehouses]
             if int(warehouse_id) not in allowed_warehouse_ids:
                 warehouse_id = None
@@ -759,7 +768,7 @@ def receipt_detail(receipt_id):
     )
 
     # Check if user has access to this receipt's warehouse
-    if not current_user.is_admin:
+    if not current_user.can_view_all_warehouses:
         warehouse_accessible = (
             receipt.warehouse.is_public or receipt.warehouse.owner_id == current_user.id
         )

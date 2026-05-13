@@ -31,19 +31,25 @@
                     {% if user.is_admin %}
                     {{ render_nav_item('stockin', '入库') }}
                     {% endif %}
+                    {% if not user.is_auditor %}
                     {{ render_nav_item('stockout', '出库') }}
+                    {% endif %}
                     {{ render_nav_item('records', '操作记录') }}
                     {{ render_nav_item('statistics_usage', '用量统计') }}
                     {% if user.is_admin %}
                     {{ render_nav_item('item', '物品管理') }}
+                    {% endif %}
+                    {% if user.is_admin or user.is_auditor %}
                     {{ render_nav_item('statistics_fee', '费用统计') }}
                     {% endif %}
-                    {{ render_nav_item('employees', '人员管理') }}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">工具管理</a>
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">人员工具管理</a>
                         <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('employees') }}">人员管理/工具换发/归还</a></li>
+                            {% if not user.is_auditor %}
                             <li><a class="dropdown-item" href="{{ url_for('tool_requisition') }}">工具领用</a></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('tool_scrap') }}">工具报废</a></li>
+                            {% endif %}
+                            <li><a class="dropdown-item" href="{{ url_for('tool_scrap') }}">工具报废</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('tool_print') }}">确认单打印</a></li>
                         </ul>
                     </li>
@@ -56,7 +62,7 @@
                     <li class="nav-item">
                         <a class="nav-link">你好，{{ user.nickname }}</a>
                     </li>
-                    {{ render_nav_item('change_password', '修改密码') }}
+                    {{ render_nav_item('change_password', '账户管理') }}
                     {{ render_nav_item('logout', '登出') }}
                 </ul>
             </div>

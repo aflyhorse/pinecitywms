@@ -21,7 +21,7 @@
                     <div class="col-md-2">
                         <label class="form-label">仓库</label>
                         <select name="warehouse" class="form-select" onchange="this.form.submit()">
-                            {% if user.is_admin %}
+                            {% if user.can_view_all_warehouses %}
                             <option value="">全部仓库</option>
                             {% endif %}
                             {% for warehouse in warehouses %}
@@ -192,13 +192,15 @@
                                     {% endif %}
                                 </div>
                                 <div style="width: 16px; margin-left: 8px; text-align: center">
+                                    {% if not current_user.is_auditor %}
                                     <a href="{{ url_for('stockout', warehouse=transaction.receipt.warehouse.id, item_id=transaction.itemSKU.id) }}"
                                         data-bs-toggle="tooltip" data-bs-placement="left" title="快捷出库">
                                         {{ render_icon('upload') }}
                                     </a>
+                                    {% endif %}
                                 </div>
                                 <div style="width: 16px; margin-left: 8px; text-align: center">
-                                    {% if not transaction.receipt.revoked %}
+                                    {% if not transaction.receipt.revoked and not current_user.is_auditor %}
                                     <a href="{{ url_for('receipt_detail', receipt_id=transaction.receipt.id) }}"
                                         data-bs-toggle="tooltip" data-bs-placement="right" title="撤销">
                                         {{ render_icon('x-circle') }}

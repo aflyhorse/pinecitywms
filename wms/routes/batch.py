@@ -27,6 +27,7 @@ import pandas as pd
 from datetime import datetime
 from io import BytesIO
 from decimal import Decimal
+import re
 
 
 @app.route("/batch_stockin", methods=["GET", "POST"])
@@ -141,11 +142,16 @@ def batch_stockin():
                 processed_count += 1
 
             # Commit transactions
-            db.session.commit()
-
-            # Update warehouse inventory
-            receipt.update_warehouse_item_skus()
-            db.session.commit()
+            try:
+                db.session.commit()
+                # Update warehouse inventory
+                receipt.update_warehouse_item_skus()
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                flash(f"处理库存更新时出错: {e}", "error")
+                current_app.logger.error(f"Batch stockin update error: {e}")
+                return redirect(url_for("batch_stockin"))
 
             # Sync tool inventory for tool items
             for transaction in receipt.transactions:
@@ -206,6 +212,10 @@ def stockin_template():
 @login_required
 def batch_takestock():
     """Batch take stock page"""
+    if current_user.is_auditor:
+        flash("审核员无权执行盘库。", "danger")
+        return redirect(url_for("inventory"))
+
     form = BatchTakeStockForm()
     warehouses = db.session.execute(db.select(Warehouse)).scalars().all()
     form.warehouse.choices = [(w.id, w.name) for w in warehouses]
@@ -344,6 +354,25 @@ def batch_takestock():
                 receipt.update_warehouse_item_skus()
                 db.session.commit()
 
+                # Sync tool inventory for tool items when TAKESTOCK affects tools
+                for transaction in receipt.transactions:
+                    sku = db.session.get(ItemSKU, transaction.itemSKU_id)
+                    if sku and sku.item.is_tool:
+                        ti = ToolInventory.query.filter_by(
+                            user_id=receipt.operator_id, itemSKU_id=sku.id
+                        ).first()
+                        if ti is None:
+                            ti = ToolInventory(
+                                user_id=receipt.operator_id,
+                                itemSKU_id=sku.id,
+                                count=0,
+                                pending_scrap=0,
+                            )
+                            db.session.add(ti)
+                        # For TAKESTOCK, transaction.count is the delta (actual - system)
+                        ti.count += transaction.count
+                db.session.commit()
+
                 flash(f"成功处理 {processed_count} 条记录", "success")
                 return redirect(url_for("batch_takestock"))
             except Exception as e:  # pragma: no cover
@@ -394,7 +423,9 @@ def generate_takestock_template(warehouse, only_with_stock=False):
     output.seek(0)
 
     # Send file to user
-    safe_name = warehouse.name.replace("/", "_").replace("\\", "_")
+    # Sanitize warehouse name for filesystem/headers while preserving CJK and common chars
+    safe_name = re.sub(r'[<>:\\"/\\|?*\x00-\x1F]', "_", warehouse.name)
+    safe_name = safe_name[:120]
     return send_file(
         output,
         download_name=f"takestock_{safe_name}.xlsx",

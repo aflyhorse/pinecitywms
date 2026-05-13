@@ -6,7 +6,7 @@
         <a href="{{ url_for('employees') }}" class="btn btn-outline-secondary btn-sm">
             {{ render_icon('arrow-left') }} 返回
         </a>
-        <h2 class="mb-0">工具更换/归还 — {{ employee.name }}（{{ employee.employee_id }}）</h2>
+        <h2 class="mb-0">{{ '工具更换/归还' if can_operate else '工具使用情况' }} — {{ employee.name }}（{{ employee.employee_id }}）</h2>
     </div>
 
     <form method="post" id="return-form">
@@ -20,32 +20,40 @@
                     <table class="table table-hover table-bordered mb-0">
                         <thead>
                             <tr>
+                                {% if can_operate %}
                                 <th style="width: 40px;">
                                     <input type="checkbox" id="select-all" class="form-check-input">
                                 </th>
+                                {% endif %}
                                 <th>工具名称</th>
                                 <th>品牌</th>
                                 <th>规格</th>
                                 <th style="width: 100px;">持有数量</th>
-                                <th style="width: 120px;">操作数量</th>
+                                <th style="width: 120px;">{{ '操作数量' if can_operate else '持有数量' }}</th>
                                 <th style="width: 100px;" class="text-secondary" style="font-size: 0.85em;">库内余量</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for holding in holdings %}
                             <tr>
+                                {% if can_operate %}
                                 <td class="text-center">
                                     <input type="checkbox" name="sku_ids[]" value="{{ holding.itemSKU_id }}"
                                         class="form-check-input sku-checkbox">
                                 </td>
+                                {% endif %}
                                 <td>{{ holding.itemSKU.item.name }}</td>
                                 <td>{{ holding.itemSKU.brand }}</td>
                                 <td>{{ holding.itemSKU.spec }}</td>
                                 <td class="text-center">{{ holding.count }}</td>
                                 <td>
+                                    {% if can_operate %}
                                     <input type="number" name="qty_{{ holding.itemSKU_id }}" value="1"
                                         min="1" max="{{ holding.count }}"
                                         class="form-control form-control-sm">
+                                    {% else %}
+                                    <input type="number" value="{{ holding.count }}" class="form-control form-control-sm" readonly>
+                                    {% endif %}
                                 </td>
                                 <td class="text-center text-secondary" style="font-size: 0.85em;">
                                     {{ tool_counts.get(holding.itemSKU_id, 0) }}
@@ -53,7 +61,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="7" class="text-center text-secondary py-4">该员工当前未持有任何工具</td>
+                                <td colspan="{{ 7 if can_operate else 6 }}" class="text-center text-secondary py-4">该员工当前未持有任何工具</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -62,7 +70,7 @@
             </div>
         </div>
 
-        {% if holdings %}
+        {% if holdings and can_operate %}
         <div class="card">
             <div class="card-body">
                 <div class="d-flex gap-3">
@@ -83,8 +91,11 @@
 {% block scripts %}
 {{ super() }}
 <script>
-    document.getElementById('select-all').addEventListener('change', function () {
-        document.querySelectorAll('.sku-checkbox').forEach(cb => cb.checked = this.checked);
-    });
+    const selectAll = document.getElementById('select-all');
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            document.querySelectorAll('.sku-checkbox').forEach(cb => cb.checked = this.checked);
+        });
+    }
 </script>
 {% endblock scripts %}

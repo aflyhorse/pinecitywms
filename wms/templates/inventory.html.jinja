@@ -21,8 +21,10 @@
         <div>
             {% if current_user.is_admin %}<a href="{{ url_for('stockin') }}" class="btn btn-primary me-2">入库</a>{% endif
             %}
+            {% if not current_user.is_auditor %}
             <a href="{{ url_for('stockout') }}" class="btn btn-danger me-2">出库</a>
             <a href="{{ url_for('batch_takestock') }}" class="btn btn-warning">盘库</a>
+            {% endif %}
         </div>
         <div>
             <a href="{{ url_for('inventory_export', warehouse=selected_warehouse.id if selected_warehouse else '', name=itemSearchForm.name.data, brand=itemSearchForm.brand.data, spec=itemSearchForm.spec.data) }}"
@@ -104,8 +106,10 @@
                         <td>{{ item.count }}</td>
                         <td>¥{{ "%.2f"|format(item.average_price) }}</td>
                         <td class="text-center">
+                            {% if not current_user.is_auditor %}
                             <a href="{{ url_for('stockout', warehouse=selected_warehouse.id, item_id=item.itemSKU.id) }}"
                                 data-bs-toggle="tooltip" data-bs-placement="right" title="快捷出库">{{ render_icon('upload') }}</a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% else %}
@@ -116,8 +120,10 @@
                         <td>{{ item.count }}</td>
                         <td>¥{{ "%.2f"|format(item.average_price) }}</td>
                         <td class="text-center">
+                            {% if not current_user.is_auditor %}
                             <a href="{{ url_for('stockout', warehouse=selected_warehouse.id, item_id=item.itemSKU.id) }}"
                                 data-bs-toggle="tooltip" data-bs-placement="right" title="快捷出库">{{ render_icon('upload') }}</a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endif %}

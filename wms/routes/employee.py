@@ -37,6 +37,12 @@ def employees():
     else:
         form.user_id.choices = [(current_user.id, current_user.nickname)]
 
+    if request.method == "POST" and not current_user.can_manage_employees:
+        flash("审核员无权新增员工。", "danger")
+        return redirect(
+            url_for("employees", include_resigned="1" if include_resigned else "0")
+        )
+
     if form.validate_on_submit():
         user_id = form.user_id.data if current_user.is_admin else current_user.id
         existing = Employee.query.filter_by(employee_id=form.employee_id.data).first()
@@ -72,6 +78,10 @@ def employees():
 @login_required
 def employee_resign(employee_id):
     """Mark an employee as resigned after checking for outstanding tool holdings."""
+    if not current_user.can_manage_employees:
+        flash("审核员无权办理离职。", "danger")
+        return redirect(url_for("employees"))
+
     emp = db.session.get(Employee, employee_id)
     if not emp or not _check_employee_access(emp):
         return redirect(url_for("employees"))

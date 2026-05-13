@@ -3,9 +3,79 @@
 {% block content %}
 <div class="container p-5 my-5">
     <h2 class="mb-4">工具报废</h2>
+    {% if audit_mode %}
+    <div class="alert alert-info">审核员在此确认班组提交的报废申请单。</div>
+    <form method="post" id="scrap-audit-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">待审核报废申请单</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="select-all-requests" class="form-check-input">
+                                </th>
+                                <th>申请时间</th>
+                                <th>标的用户</th>
+                                <th>发起人</th>
+                                <th style="width: 100px;">工具数</th>
+                                <th style="width: 80px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for req in pending_requests %}
+                            <tr>
+                                <td class="text-center">
+                                    <input type="checkbox" name="request_ids[]" value="{{ req.id }}" class="form-check-input request-checkbox">
+                                </td>
+                                <td>{{ req.date.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ req.target_user.nickname if req.target_user else '—' }}</td>
+                                <td>{{ req.operator.nickname }}</td>
+                                <td class="text-center">{{ req.transactions|length }}</td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('tool_print_detail', receipt_id=req.id) }}" class="btn btn-sm btn-outline-secondary" target="_blank">详情</a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-secondary py-4">暂无待审核报废申请单</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex gap-3">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('确定确认所选报废申请单吗？将生成出库单并扣减待报废数量。')">
+                {{ render_icon('check2-square') }} 审核确认
+            </button>
+        </div>
+    </form>
+    {% else %}
+    {% if scope_users|length > 1 %}
+    <form method="get" class="mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">查看用户</label>
+                <select class="form-select" name="user_id" onchange="this.form.submit()">
+                    {% for u in scope_users %}
+                    <option value="{{ u.id }}" {% if u.id == selected_scope_user_id %}selected{% endif %}>{{ u.nickname }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+    {% endif %}
+
     {% if pending %}
     <form method="post" id="scrap-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="scope_user_id" value="{{ selected_scope_user_id }}">
         <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0">待报废工具列表</h5>
@@ -43,13 +113,48 @@
             </div>
         </div>
         <div class="d-flex gap-3">
-            <button type="submit" class="btn btn-danger" onclick="return confirm('确定要报废所选工具吗？系统将自动生成出库单。')">
-                {{ render_icon('trash3') }} 确认报废
+            <button type="submit" class="btn btn-danger" onclick="return confirm('确定提交所选报废申请吗？')">
+                {{ render_icon('send') }} 提交报废申请
             </button>
         </div>
     </form>
     {% else %}
     <div class="alert alert-info">当前无待报废工具。</div>
+    {% endif %}
+
+    {% if pending_requests %}
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">已提交待审核申请</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered mb-0">
+                    <thead>
+                        <tr>
+                            <th>申请时间</th>
+                            <th>发起人</th>
+                            <th style="width: 100px;">工具数</th>
+                            <th style="width: 80px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in pending_requests %}
+                        <tr>
+                            <td>{{ req.date.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ req.operator.nickname }}</td>
+                            <td class="text-center">{{ req.transactions|length }}</td>
+                            <td class="text-center">
+                                <a href="{{ url_for('tool_print_detail', receipt_id=req.id) }}" class="btn btn-sm btn-outline-secondary" target="_blank">详情</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     {% endif %}
 </div>
 {% endblock content %}
@@ -61,6 +166,13 @@
     if (selectAll) {
         selectAll.addEventListener('change', function () {
             document.querySelectorAll('.sku-checkbox').forEach(cb => cb.checked = this.checked);
+        });
+    }
+
+    const selectAllRequests = document.getElementById('select-all-requests');
+    if (selectAllRequests) {
+        selectAllRequests.addEventListener('change', function () {
+            document.querySelectorAll('.request-checkbox').forEach(cb => cb.checked = this.checked);
         });
     }
 </script>
