@@ -14,8 +14,11 @@
         </datalist>
         {{ render_field(form.brand) }}
         {{ render_field(form.spec) }}
-        {{ render_field(form.submit) }}
+        {{ render_field(form.is_tool) }}
+        <div class="d-flex gap-2">
+            {{ render_field(form.submit) }}
+            <a href="{{ url_for('item') }}" class="btn btn-secondary">返回</a>
+        </div>
     </form>
-    <a href="{{ url_for('item') }}" class="btn btn-secondary">返回</a>
 </div>
 {% endblock content %}

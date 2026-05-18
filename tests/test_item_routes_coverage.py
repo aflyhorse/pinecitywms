@@ -114,6 +114,7 @@ def test_item_create_new_item_and_sku(auth_client):
             "item_name": "新建物品123",
             "brand": "新建品牌",
             "spec": "新建规格",
+            "is_tool": False,
         },
         follow_redirects=True,
     )
@@ -145,6 +146,7 @@ def test_item_create_existing_item_new_sku(auth_client):
             "item_name": "现有物品",
             "brand": "品牌2",
             "spec": "规格2",
+            "is_tool": False,
         },
         follow_redirects=True,
     )
@@ -172,6 +174,7 @@ def test_item_create_duplicate_sku_enabled(auth_client):
             "item_name": "重复物品",
             "brand": "品牌A",
             "spec": "规格A",
+            "is_tool": False,
         },
         follow_redirects=True,
     )
@@ -196,6 +199,7 @@ def test_item_create_duplicate_sku_disabled_re_enable(auth_client):
             "item_name": "禁用物品",
             "brand": "品牌B",
             "spec": "规格B",
+            "is_tool": False,
         },
         follow_redirects=True,
     )

@@ -66,6 +66,7 @@ class ItemCreateForm(FlaskForm):
         validators=[DataRequired(), Length(1, 50)],
         render_kw={"placeholder": "若没有规格，填写'通用'"},
     )
+    is_tool = BooleanField("是否为工具", default=False)
     submit = SubmitField("添加")
 
 

@@ -86,9 +86,13 @@ def item_create():
 
         if not item:
             # Create new item if it doesn't exist
-            item = Item(name=form.item_name.data)
+            item = Item(name=form.item_name.data, is_tool=form.is_tool.data)
             db.session.add(item)
             db.session.flush()
+        else:
+            # Update is_tool status if item exists and is_tool was checked
+            if form.is_tool.data and not item.is_tool:
+                item.is_tool = True
 
         # Check if SKU with same brand and spec already exists for this item
         existing_sku = db.session.execute(

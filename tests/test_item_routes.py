@@ -35,6 +35,7 @@ def test_item_creation(auth_client):
             "item_name": "New Test Item",
             "brand": "New Brand",
             "spec": "New Spec",
+            "is_tool": False,
         },
         follow_redirects=True,
     )
@@ -52,6 +53,7 @@ def test_item_creation(auth_client):
             "item_name": existing_item.name,
             "brand": "Another Brand",
             "spec": "Another Spec",
+            "is_tool": False,
         },
         follow_redirects=True,
     )
@@ -86,6 +88,7 @@ def test_duplicate_sku_validation(auth_client):
             "item_name": "Duplicate Test Item",
             "brand": "Duplicate Brand",
             "spec": "Duplicate Spec",
+            "is_tool": False,
         },
         follow_redirects=True,
     )
@@ -99,6 +102,7 @@ def test_duplicate_sku_validation(auth_client):
             "item_name": "Duplicate Test Item",  # Same item name
             "brand": "Duplicate Brand",  # Same brand
             "spec": "Duplicate Spec",  # Same spec
+            "is_tool": False,
         },
         follow_redirects=True,
     )
