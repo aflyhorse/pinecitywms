@@ -688,7 +688,19 @@ def tool_print():
         return redirect(url_for("tool_print", user_id=scope_user_id))
 
     page = request.args.get("page", 1, type=int)
-    q = _tool_receipt_scope_query(ToolReceipt.query, scope_user_id)
+    # Build the scope filter: receipts initiated by or targeted at the scoped user
+    scope_filter = or_(
+        ToolReceipt.operator_id == scope_user_id,
+        and_(ToolReceipt.type == ToolReceiptType.SCRAP, ToolReceipt.target_user_id == scope_user_id),
+    )
+
+    # Auditors should also see scrap receipts they personally confirmed
+    if current_user.is_auditor:
+        final_filter = or_(scope_filter, ToolReceipt.confirmed_by_id == current_user.id)
+    else:
+        final_filter = scope_filter
+
+    q = ToolReceipt.query.filter(final_filter)
     pagination = q.order_by(ToolReceipt.date.desc()).paginate(page=page, per_page=20)
     return render_template(
         "tool_print.html.jinja",

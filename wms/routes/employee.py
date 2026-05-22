@@ -8,7 +8,8 @@ from wms.forms import EmployeeCreateForm
 def _employee_queryset():
     """Return base Employee query filtered to current user's scope."""
     q = Employee.query
-    if not current_user.is_admin:
+    # Allow auditors (and admins) to view all employees, but non-admin/non-auditor users only see their own
+    if not current_user.can_view_all_tool_groups:
         q = q.filter(Employee.user_id == current_user.id)
     return q
 

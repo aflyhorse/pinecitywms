@@ -1,5 +1,14 @@
 import pytest
-from wms.models import Warehouse, ItemSKU, User, Receipt, ReceiptType, Transaction
+from wms.models import (
+    Warehouse,
+    Item,
+    ItemSKU,
+    ToolInventory,
+    User,
+    Receipt,
+    ReceiptType,
+    Transaction,
+)
 from wms import app, db
 from werkzeug.security import generate_password_hash
 
@@ -39,6 +48,56 @@ def test_stockin(auth_client, test_warehouse):
         warehouse_item = warehouse.item_skus[0]
         assert warehouse_item.count == 10
         assert warehouse_item.average_price == 100.00
+
+
+def test_tool_stockin_uses_warehouse_owner(auth_client):
+    with app.app_context():
+        admin = User.query.filter_by(username="testadmin").first()
+        owner = User(username="warehouse_owner", nickname="仓库归属人", is_admin=False)
+        owner.set_password("password123")
+        db.session.add(owner)
+        db.session.flush()
+
+        item = Item(name="归属测试工具", is_tool=True)
+        db.session.add(item)
+        db.session.flush()
+        sku = ItemSKU(item_id=item.id, brand="Brand", spec="Spec")
+        db.session.add(sku)
+        db.session.flush()
+
+        warehouse = Warehouse(name="归属测试仓库", owner_id=owner.id)
+        db.session.add(warehouse)
+        db.session.commit()
+
+        warehouse_id = warehouse.id
+        sku_id = sku.id
+        owner_id = owner.id
+        admin_id = admin.id
+
+    response = auth_client.post(
+        "/stockin",
+        data={
+            "refcode": "TOOL-STOCKIN-001",
+            "warehouse": warehouse_id,
+            "items-0-item_id": str(sku_id),
+            "items-0-quantity": "4",
+            "items-0-price": "12.00",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert "入库成功".encode() in response.data
+
+    with app.app_context():
+        owner_tool = ToolInventory.query.filter_by(
+            user_id=owner_id, itemSKU_id=sku_id
+        ).first()
+        admin_tool = ToolInventory.query.filter_by(
+            user_id=admin_id, itemSKU_id=sku_id
+        ).first()
+        assert owner_tool is not None
+        assert owner_tool.count == 4
+        assert admin_tool is None
 
 
 def test_stockin_validation(auth_client, test_warehouse):

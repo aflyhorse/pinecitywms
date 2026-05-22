@@ -69,8 +69,10 @@ class Warehouse(db.Model):
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     # Public warehouses are visible to all users
     is_public: Mapped[bool] = mapped_column(default=False)
-    # Private warehouses have an owner
-    owner_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=True)
+    # Private warehouses have an owner; the app treats this as one warehouse per user.
+    owner_id: Mapped[int] = mapped_column(
+        ForeignKey("user.id"), nullable=True, unique=True
+    )
     owner: Mapped[User] = relationship(back_populates="warehouse", uselist=False)
     # Related receipts and inventory items
     receipts: Mapped[List["Receipt"]] = relationship(back_populates="warehouse")

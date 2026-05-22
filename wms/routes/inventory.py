@@ -24,15 +24,19 @@ import uuid
 
 def _sync_tool_inventory_stockin(receipt: Receipt):
     """After a STOCKIN receipt is committed, update ToolInventory counts for tool SKUs."""
+    if not receipt.warehouse or receipt.warehouse.owner_id is None:
+        return
+
+    tool_user_id = receipt.warehouse.owner_id
     for transaction in receipt.transactions:
         sku = db.session.get(ItemSKU, transaction.itemSKU_id)
         if sku and sku.item.is_tool:
             ti = ToolInventory.query.filter_by(
-                user_id=receipt.operator_id, itemSKU_id=sku.id
+                user_id=tool_user_id, itemSKU_id=sku.id
             ).first()
             if ti is None:
                 ti = ToolInventory(
-                    user_id=receipt.operator_id,
+                    user_id=tool_user_id,
                     itemSKU_id=sku.id,
                     count=0,
                     pending_scrap=0,
