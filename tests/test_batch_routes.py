@@ -5,7 +5,9 @@ from wms.models import (
     Receipt,
     Transaction,
     ReceiptType,
+    ToolInventory,
     WarehouseItemSKU,
+    User,
 )
 from wms import app, db
 import pandas as pd
@@ -72,6 +74,61 @@ def test_batch_stockin_post_success(client, auth_client, test_user, test_warehou
     assert transaction is not None
     assert transaction.count == 10
     assert transaction.price == Decimal("99.99")
+
+
+def test_batch_stockin_tool_inventory_targets_warehouse_owner(
+    auth_client, regular_warehouse
+):
+    with app.app_context():
+        owner_id = db.session.execute(
+            db.select(User.id).filter_by(username="testuser")
+        ).scalar_one()
+        admin_id = db.session.execute(
+            db.select(User.id).filter_by(username="testadmin")
+        ).scalar_one()
+
+        item = Item(name="批量入库工具物品", is_tool=True)
+        db.session.add(item)
+        db.session.flush()
+
+        sku = ItemSKU(item_id=item.id, brand="工具品牌", spec="工具规格")
+        db.session.add(sku)
+        db.session.flush()
+        sku_id = sku.id
+        db.session.commit()
+
+    df = pd.DataFrame(
+        {
+            "物品": ["批量入库工具物品"],
+            "品牌": ["工具品牌"],
+            "规格": ["工具规格"],
+            "数量": [6],
+            "单价": [12.50],
+        }
+    )
+
+    excel_file = io.BytesIO()
+    df.to_excel(excel_file, index=False)
+    excel_file.seek(0)
+
+    response = auth_client.post(
+        "/batch_stockin",
+        data={"warehouse": regular_warehouse, "file": (excel_file, "tool.xlsx")},
+        follow_redirects=True,
+        content_type="multipart/form-data",
+    )
+    assert "成功处理 1 条记录" in response.get_data(as_text=True)
+
+    with app.app_context():
+        owner_tool = ToolInventory.query.filter_by(
+            user_id=owner_id, itemSKU_id=sku_id
+        ).first()
+        admin_tool = ToolInventory.query.filter_by(
+            user_id=admin_id, itemSKU_id=sku_id
+        ).first()
+        assert owner_tool is not None
+        assert owner_tool.count == 6
+        assert admin_tool is None
 
 
 def test_batch_stockin_invalid_file(client, auth_client, test_user, test_warehouse):
@@ -221,6 +278,76 @@ def test_batch_takestock_post_success(client, auth_client, test_user, test_wareh
             )
         ).scalar_one_or_none()
         assert updated_wis.count == 8  # 10 - 2
+
+
+def test_batch_takestock_tool_inventory_targets_warehouse_owner(
+    auth_client, regular_warehouse
+):
+    with app.app_context():
+        owner_id = db.session.execute(
+            db.select(User.id).filter_by(username="testuser")
+        ).scalar_one()
+        admin_id = db.session.execute(
+            db.select(User.id).filter_by(username="testadmin")
+        ).scalar_one()
+
+        item = Item(name="批量盘库工具物品", is_tool=True)
+        db.session.add(item)
+        db.session.flush()
+
+        sku = ItemSKU(item_id=item.id, brand="盘库工具品牌", spec="盘库工具规格")
+        db.session.add(sku)
+        db.session.flush()
+        sku_id = sku.id
+
+        db.session.add(
+            WarehouseItemSKU(
+                warehouse_id=regular_warehouse, itemSKU_id=sku_id, count=10
+            )
+        )
+        db.session.add(
+            ToolInventory(
+                user_id=owner_id, itemSKU_id=sku_id, count=10, pending_scrap=0
+            )
+        )
+        db.session.commit()
+
+    df = pd.DataFrame(
+        {
+            "物品": ["批量盘库工具物品"],
+            "品牌": ["盘库工具品牌"],
+            "规格": ["盘库工具规格"],
+            "系统库存": [10],
+            "实际库存": [8],
+        }
+    )
+
+    excel_file = io.BytesIO()
+    df.to_excel(excel_file, index=False)
+    excel_file.seek(0)
+
+    response = auth_client.post(
+        "/batch_takestock",
+        data={
+            "warehouse": regular_warehouse,
+            "note": "工具盘库测试",
+            "file": (excel_file, "takestock.xlsx"),
+        },
+        follow_redirects=True,
+        content_type="multipart/form-data",
+    )
+    assert "成功处理 1 条记录" in response.get_data(as_text=True)
+
+    with app.app_context():
+        owner_tool = ToolInventory.query.filter_by(
+            user_id=owner_id, itemSKU_id=sku_id
+        ).first()
+        admin_tool = ToolInventory.query.filter_by(
+            user_id=admin_id, itemSKU_id=sku_id
+        ).first()
+        assert owner_tool is not None
+        assert owner_tool.count == 8
+        assert admin_tool is None
 
 
 def test_batch_takestock_template_download(

@@ -30,6 +30,11 @@ from decimal import Decimal
 import re
 
 
+def _tool_inventory_owner_id(warehouse: Warehouse) -> int | None:
+    """Return the warehouse owner to receive tool inventory updates."""
+    return warehouse.owner_id
+
+
 @app.route("/batch_stockin", methods=["GET", "POST"])
 @login_required
 @admin_required
@@ -154,15 +159,16 @@ def batch_stockin():
                 return redirect(url_for("batch_stockin"))
 
             # Sync tool inventory for tool items
+            tool_owner_id = _tool_inventory_owner_id(warehouse)
             for transaction in receipt.transactions:
                 sku = db.session.get(ItemSKU, transaction.itemSKU_id)
-                if sku and sku.item.is_tool:
+                if sku and sku.item.is_tool and tool_owner_id is not None:
                     ti = ToolInventory.query.filter_by(
-                        user_id=receipt.operator_id, itemSKU_id=sku.id
+                        user_id=tool_owner_id, itemSKU_id=sku.id
                     ).first()
                     if ti is None:
                         ti = ToolInventory(
-                            user_id=receipt.operator_id,
+                            user_id=tool_owner_id,
                             itemSKU_id=sku.id,
                             count=0,
                             pending_scrap=0,
@@ -355,15 +361,16 @@ def batch_takestock():
                 db.session.commit()
 
                 # Sync tool inventory for tool items when TAKESTOCK affects tools
+                tool_owner_id = _tool_inventory_owner_id(warehouse)
                 for transaction in receipt.transactions:
                     sku = db.session.get(ItemSKU, transaction.itemSKU_id)
-                    if sku and sku.item.is_tool:
+                    if sku and sku.item.is_tool and tool_owner_id is not None:
                         ti = ToolInventory.query.filter_by(
-                            user_id=receipt.operator_id, itemSKU_id=sku.id
+                            user_id=tool_owner_id, itemSKU_id=sku.id
                         ).first()
                         if ti is None:
                             ti = ToolInventory(
-                                user_id=receipt.operator_id,
+                                user_id=tool_owner_id,
                                 itemSKU_id=sku.id,
                                 count=0,
                                 pending_scrap=0,
