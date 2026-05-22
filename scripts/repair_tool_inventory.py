@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 import sys
 
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
@@ -43,8 +44,7 @@ class MovePlan:
     source_user_id: int
     target_user_id: int
     sku_id: int
-    source_count: int
-    warehouse_count: int
+    count: int
     pending_scrap: int
 
 
@@ -129,7 +129,6 @@ def _print_detailed_plan(
     updates: list[tuple[int, int, int]],
     moves: list[MovePlan],
     purges: list[tuple[int, int]],
-    timestamp: str,
 ) -> None:
     """Print human-readable repair items with serial number, content, and time."""
 
@@ -139,20 +138,17 @@ def _print_detailed_plan(
 
     for user_id, sku_id, count in updates:
         print(
-            f"更新 | 内容: {_describe_sku(sku_id)}, user_id={user_id}, count -> {count} | 时间: {timestamp}"
+            f"更新 | 内容: {_describe_sku(sku_id)}, user_id={user_id}, count -> {count}"
         )
 
     for move in moves:
         print(
-            f"迁移 | 内容: {_describe_sku(move.sku_id)}, from user_id={move.source_user_id} "
-            + f"to user_id={move.target_user_id}, tool_count -> {move.source_count}, "
-            + f"warehouse_count -> {move.warehouse_count}, pending_scrap -> {move.pending_scrap} | {timestamp}"
+            f"迁移 | 内容: {_describe_sku(move.sku_id)}, from user_id={move.source_user_id} to "
+            + f"user_id={move.target_user_id}, count -> {move.count}, pending_scrap -> {move.pending_scrap}"
         )
 
     for user_id, sku_id in purges:
-        print(
-            f"删除 | 内容: {_describe_sku(sku_id)}, user_id={user_id} | 时间: {timestamp}"
-        )
+        print(f"删除 | 内容: {_describe_sku(sku_id)}, user_id={user_id}")
 
 
 def main() -> int:
@@ -170,7 +166,6 @@ def main() -> int:
     args = parser.parse_args()
 
     with app.app_context():
-        report_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         owner_warehouses = _build_owner_warehouse_map()
         stock_map = _build_stock_map(owner_warehouses)
 
@@ -212,8 +207,7 @@ def main() -> int:
                         source_user_id=row.user_id,
                         target_user_id=stock.owner_id,
                         sku_id=row.itemSKU_id,
-                        source_count=row.count,
-                        warehouse_count=stock.count,
+                        count=stock.count,
                         pending_scrap=row.pending_scrap,
                     )
                 )
@@ -239,7 +233,7 @@ def main() -> int:
         print(f"Planned updates: {len(updates)}")
         print(f"Planned moves: {len(moves)}")
         print(f"Planned purges: {len(purges)}")
-        _print_detailed_plan(updates, moves, purges, report_time)
+        _print_detailed_plan(updates, moves, purges)
 
         if not args.apply:
             print("Dry-run only. Re-run with --apply to write changes.")
@@ -276,12 +270,12 @@ def main() -> int:
                 target_row = ToolInventory(
                     user_id=move.target_user_id,
                     itemSKU_id=move.sku_id,
-                    count=move.source_count,
+                    count=move.count,
                     pending_scrap=move.pending_scrap,
                 )
                 db.session.add(target_row)
             else:
-                target_row.count += move.source_count
+                target_row.count = move.count
                 target_row.pending_scrap += move.pending_scrap
             db.session.delete(source_row)
 
