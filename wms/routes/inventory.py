@@ -371,6 +371,7 @@ def stockout():
             .filter(
                 WarehouseItemSKU.count > 0,
                 WarehouseItemSKU.warehouse_id == selected_warehouse_id,
+                Item.is_tool.is_(False),
             )
             .distinct()
             .all()
@@ -481,6 +482,9 @@ def stockout():
                 expected_name = items_dict.get(item_id, {}).get("name")
                 if expected_name and item_form.item_id.data != expected_name:
                     raise ValueError("物品与物料编号不一致，请重新选择物品")
+
+                if item.item.is_tool:
+                    raise ValueError("工具物品不能直接出库")
 
                 quantity = item_form.quantity.data
                 if quantity <= 0:

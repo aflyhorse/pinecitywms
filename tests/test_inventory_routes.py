@@ -1,8 +1,11 @@
+import json
+
 import pytest
 from wms.models import (
     Warehouse,
     Item,
     ItemSKU,
+    WarehouseItemSKU,
     ToolInventory,
     User,
     Receipt,
@@ -100,6 +103,67 @@ def test_tool_stockin_uses_warehouse_owner(auth_client):
         assert admin_tool is None
 
 
+def test_admin_stockin_then_toggle_tool_targets_user_warehouse_and_tool_group(
+    auth_client, regular_warehouse
+):
+    with app.app_context():
+        owner = db.session.execute(
+            db.select(User).filter_by(username="testuser")
+        ).scalar_one()
+        item = Item(name="管理员入库联动测试", is_tool=False)
+        db.session.add(item)
+        db.session.flush()
+        sku = ItemSKU(item_id=item.id, brand="联动品牌", spec="联动规格")
+        db.session.add(sku)
+        db.session.commit()
+
+        item_id = item.id
+        sku_id = sku.id
+        owner_id = owner.id
+
+    stockin_resp = auth_client.post(
+        "/stockin",
+        data={
+            "refcode": "ADMIN-TO-USER-WH-001",
+            "warehouse": regular_warehouse,
+            "items-0-item_id": str(sku_id),
+            "items-0-quantity": "7",
+            "items-0-price": "21.00",
+        },
+        follow_redirects=True,
+    )
+    assert stockin_resp.status_code == 200
+    assert "入库成功".encode() in stockin_resp.data
+
+    toggle_resp = auth_client.post(f"/item/{item_id}/toggle_tool")
+    assert toggle_resp.status_code == 200
+    toggle_data = json.loads(toggle_resp.data)
+    assert toggle_data["success"] is True
+    assert toggle_data["is_tool"] is True
+    assert "已标记为工具" in toggle_data["message"]
+
+    with app.app_context():
+        warehouse_item = WarehouseItemSKU.query.filter_by(
+            warehouse_id=regular_warehouse, itemSKU_id=sku_id
+        ).first()
+        assert warehouse_item is not None
+        assert warehouse_item.count == 7
+
+        tool_row = ToolInventory.query.filter_by(
+            user_id=owner_id, itemSKU_id=sku_id
+        ).first()
+        assert tool_row is not None
+        assert tool_row.count == 7
+
+        wrong_tool_row = ToolInventory.query.filter_by(
+            user_id=db.session.execute(
+                db.select(User.id).filter_by(username="testadmin")
+            ).scalar_one(),
+            itemSKU_id=sku_id,
+        ).first()
+        assert wrong_tool_row is None
+
+
 def test_stockin_validation(auth_client, test_warehouse):
     # Test invalid item ID
     response = auth_client.post(
@@ -138,6 +202,66 @@ def test_stockout_page_access(auth_client):
     assert b"area" in response.data  # Check for area field
     assert b"department" in response.data  # Check for department field
     assert b"location" in response.data  # Check for location field
+
+
+def test_stockout_page_excludes_tool_items_and_rejects_tool_stockout(
+    auth_client, test_warehouse, test_customer
+):
+    with app.app_context():
+        tool_item = Item(name="出库过滤工具", is_tool=True)
+        regular_item = Item(name="出库过滤普通品", is_tool=False)
+        db.session.add_all([tool_item, regular_item])
+        db.session.flush()
+
+        tool_sku = ItemSKU(item=tool_item, brand="工具品牌", spec="工具规格")
+        regular_sku = ItemSKU(item=regular_item, brand="普通品牌", spec="普通规格")
+        db.session.add_all([tool_sku, regular_sku])
+        db.session.flush()
+
+        db.session.add(
+            WarehouseItemSKU(
+                warehouse_id=test_warehouse,
+                itemSKU_id=tool_sku.id,
+                count=3,
+                average_price=10,
+            )
+        )
+        db.session.add(
+            WarehouseItemSKU(
+                warehouse_id=test_warehouse,
+                itemSKU_id=regular_sku.id,
+                count=5,
+                average_price=20,
+            )
+        )
+        db.session.commit()
+
+        tool_display = f"{tool_item.name} - {tool_sku.brand} - {tool_sku.spec}"
+        regular_display = (
+            f"{regular_item.name} - {regular_sku.brand} - {regular_sku.spec}"
+        )
+
+    page_resp = auth_client.get(f"/stockout?warehouse={test_warehouse}")
+    assert page_resp.status_code == 200
+    assert regular_display.encode() in page_resp.data
+    assert tool_display.encode() not in page_resp.data
+
+    post_resp = auth_client.post(
+        "/stockout",
+        data={
+            "warehouse": test_warehouse,
+            "area": test_customer["area"],
+            "department": test_customer["department"],
+            "location": "测试地点",
+            "items-0-item_id": tool_display,
+            "items-0-item_sku_id": str(tool_sku.id),
+            "items-0-quantity": "1",
+            "items-0-price": "10.00",
+        },
+        follow_redirects=True,
+    )
+    assert post_resp.status_code == 200
+    assert "工具物品不能直接出库".encode() in post_resp.data
 
 
 def test_area_department_selection(auth_client, test_customer):

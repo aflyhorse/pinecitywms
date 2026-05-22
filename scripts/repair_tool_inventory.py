@@ -13,12 +13,9 @@ Safety model
   unique owned warehouse and are not present in the current warehouse stock map.
 """
 
-from __future__ import annotations
-
 import argparse
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 import sys
 
