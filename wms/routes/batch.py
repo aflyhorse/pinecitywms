@@ -22,7 +22,7 @@ from wms.models import (
     ToolInventory,
 )
 from wms.forms import BatchStockInForm, BatchTakeStockForm
-from wms.utils import admin_required
+from wms.utils import admin_required, set_item_tool_status
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
@@ -52,6 +52,8 @@ def batch_stockin():
             form.warehouse.data = last_warehouse_id
 
     if request.method == "POST" and form.validate_on_submit():
+        tools_only = form.tools_only.data
+
         # Get warehouse
         warehouse_id = form.warehouse.data
         warehouse = db.session.get(Warehouse, warehouse_id)
@@ -99,6 +101,7 @@ def batch_stockin():
 
             # Process each row
             processed_count = 0
+            tools_promoted_item_ids = set()
             for _, row in df.iterrows():
                 item_name = str(row["物品"]).strip()
                 brand = str(row["品牌"]).strip()
@@ -120,9 +123,13 @@ def batch_stockin():
                 ).scalar_one_or_none()
 
                 if not item:
-                    item = Item(name=item_name)
+                    item = Item(name=item_name, is_tool=tools_only)
                     db.session.add(item)
                     db.session.flush()  # To get the item ID
+                elif tools_only and not item.is_tool:
+                    if item.id not in tools_promoted_item_ids:
+                        set_item_tool_status(item, True)
+                        tools_promoted_item_ids.add(item.id)
 
                 # Find or create item SKU
                 item_sku = db.session.execute(

@@ -2,8 +2,8 @@ from flask import render_template, url_for, redirect, flash, request, jsonify
 from flask_login import login_required
 from sqlalchemy import select, distinct, desc
 from wms import app, db
-from wms.utils import admin_required, _escape_like
-from wms.models import Item, ItemSKU, ToolInventory
+from wms.utils import admin_required, _escape_like, set_item_tool_status
+from wms.models import Item, ItemSKU
 from wms.forms import ItemSearchForm, ItemCreateForm
 
 
@@ -156,32 +156,7 @@ def toggle_tool(item_id):
     if not item:
         return jsonify({"success": False, "message": "物品不存在"}), 404
 
-    item.is_tool = not item.is_tool
-
-    if item.is_tool:
-        # Seed ToolInventory from current warehouse stock (one row per group-user per SKU)
-        for sku in item.skus:
-            for wis in sku.warehouses:
-                owner_id = wis.warehouse.owner_id
-                if not owner_id or wis.count <= 0:
-                    continue  # skip public warehouses and empty stock
-                ti = ToolInventory.query.filter_by(
-                    user_id=owner_id, itemSKU_id=sku.id
-                ).first()
-                if ti is None:
-                    ti = ToolInventory(
-                        user_id=owner_id,
-                        itemSKU_id=sku.id,
-                        count=wis.count,
-                        pending_scrap=0,
-                    )
-                    db.session.add(ti)
-                else:
-                    ti.count = wis.count  # resync if toggled off and back on
-    else:
-        # Remove tool inventory rows when un-marking
-        for sku in item.skus:
-            ToolInventory.query.filter_by(itemSKU_id=sku.id).delete()
+    set_item_tool_status(item, not item.is_tool)
     db.session.commit()
     return jsonify(
         {

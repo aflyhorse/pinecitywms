@@ -5,6 +5,47 @@ from flask import request
 from wms import db
 
 
+def set_item_tool_status(item, is_tool: bool) -> bool:
+    """Set item tool flag and keep ToolInventory in sync.
+
+    Returns True when the status changed, False when unchanged.
+    """
+    if item.is_tool == is_tool:
+        return False
+
+    item.is_tool = is_tool
+
+    # Import here to avoid circular imports at module load time.
+    from wms.models import ToolInventory
+
+    if is_tool:
+        # Seed ToolInventory from current warehouse stock.
+        for sku in item.skus:
+            for wis in sku.warehouses:
+                owner_id = wis.warehouse.owner_id
+                if not owner_id or wis.count <= 0:
+                    continue
+                ti = ToolInventory.query.filter_by(
+                    user_id=owner_id, itemSKU_id=sku.id
+                ).first()
+                if ti is None:
+                    ti = ToolInventory(
+                        user_id=owner_id,
+                        itemSKU_id=sku.id,
+                        count=wis.count,
+                        pending_scrap=0,
+                    )
+                    db.session.add(ti)
+                else:
+                    ti.count = wis.count
+    else:
+        # Remove tool inventory rows when un-marking.
+        for sku in item.skus:
+            ToolInventory.query.filter_by(itemSKU_id=sku.id).delete()
+
+    return True
+
+
 def user_can_view_tool_receipt(user, tool_receipt) -> bool:
     """Return True if `user` may view the given ToolReceipt object.
 

@@ -101,6 +101,7 @@ class StockInForm(FlaskForm):
 class BatchStockInForm(FlaskForm):
     warehouse = SelectField("库房", coerce=int, validators=[InputRequired()])
     file = FileField("选择文件", validators=[InputRequired()])
+    tools_only = BooleanField("将本次上传物品全部声明为工具", default=False)
     submit = SubmitField("上传")
 
 

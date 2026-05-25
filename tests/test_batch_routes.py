@@ -7,6 +7,7 @@ from wms.models import (
     ReceiptType,
     ToolInventory,
     WarehouseItemSKU,
+    Warehouse,
     User,
 )
 from wms import app, db
@@ -129,6 +130,77 @@ def test_batch_stockin_tool_inventory_targets_warehouse_owner(
         assert owner_tool is not None
         assert owner_tool.count == 6
         assert admin_tool is None
+
+
+def test_batch_stockin_tools_only_marks_new_and_existing_items(
+    auth_client, test_warehouse
+):
+    with app.app_context():
+        existing_item = Item(name="已有非工具物品", is_tool=False)
+        db.session.add(existing_item)
+        db.session.flush()
+        existing_sku = ItemSKU(item_id=existing_item.id, brand="品牌A", spec="规格A")
+        db.session.add(existing_sku)
+        db.session.flush()
+
+        # Existing stock should be seeded into ToolInventory after tools-only upload.
+        existing_wis = WarehouseItemSKU(
+            warehouse_id=test_warehouse,
+            itemSKU_id=existing_sku.id,
+            count=5,
+            average_price=Decimal("7.20"),
+        )
+        db.session.add(existing_wis)
+        db.session.commit()
+
+    df = pd.DataFrame(
+        {
+            "物品": ["已有非工具物品", "全新物品"],
+            "品牌": ["品牌A", "品牌B"],
+            "规格": ["规格A", "规格B"],
+            "数量": [1, 2],
+            "单价": [3.5, 4.6],
+        }
+    )
+
+    excel_file = io.BytesIO()
+    df.to_excel(excel_file, index=False)
+    excel_file.seek(0)
+
+    response = auth_client.post(
+        "/batch_stockin",
+        data={
+            "warehouse": test_warehouse,
+            "tools_only": "y",
+            "file": (excel_file, "tools_only.xlsx"),
+        },
+        follow_redirects=True,
+        content_type="multipart/form-data",
+    )
+    assert "成功处理 2 条记录" in response.get_data(as_text=True)
+
+    with app.app_context():
+        warehouse = db.session.get(Warehouse, test_warehouse)
+        owner_id = warehouse.owner_id
+        existing_item = db.session.execute(
+            db.select(Item).filter_by(name="已有非工具物品")
+        ).scalar_one()
+        new_item = db.session.execute(
+            db.select(Item).filter_by(name="全新物品")
+        ).scalar_one()
+        assert existing_item.is_tool is True
+        assert new_item.is_tool is True
+
+        existing_sku = db.session.execute(
+            db.select(ItemSKU).filter_by(
+                item_id=existing_item.id, brand="品牌A", spec="规格A"
+            )
+        ).scalar_one()
+        tool_row = ToolInventory.query.filter_by(
+            user_id=owner_id, itemSKU_id=existing_sku.id
+        ).first()
+        assert tool_row is not None
+        assert tool_row.count == 6  # 5 existing stock + 1 from this upload
 
 
 def test_batch_stockin_invalid_file(client, auth_client, test_user, test_warehouse):
