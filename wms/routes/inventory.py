@@ -335,6 +335,10 @@ def stockout():
     form.warehouse.choices = [(w.id, w.name) for w in warehouses]
     form.area.choices = [(a.id, a.name) for a in areas]
     form.department.choices = [(d.id, d.name) for d in departments]
+    if len(areas) == 1:
+        form.area.data = areas[0].id
+    if len(departments) == 1:
+        form.department.data = departments[0].id
 
     # Initialize items list
     items = []

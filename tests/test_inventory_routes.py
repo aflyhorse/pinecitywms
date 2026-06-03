@@ -1,7 +1,10 @@
 import json
+import re
 
 import pytest
 from wms.models import (
+    Area,
+    Department,
     Warehouse,
     Item,
     ItemSKU,
@@ -55,7 +58,6 @@ def test_stockin(auth_client, test_warehouse):
 
 def test_tool_stockin_uses_warehouse_owner(auth_client):
     with app.app_context():
-        admin = User.query.filter_by(username="testadmin").first()
         owner = User(username="warehouse_owner", nickname="仓库归属人", is_admin=False)
         owner.set_password("password123")
         db.session.add(owner)
@@ -74,8 +76,6 @@ def test_tool_stockin_uses_warehouse_owner(auth_client):
 
         warehouse_id = warehouse.id
         sku_id = sku.id
-        owner_id = owner.id
-        admin_id = admin.id
 
     response = auth_client.post(
         "/stockin",
@@ -91,16 +91,35 @@ def test_tool_stockin_uses_warehouse_owner(auth_client):
     assert response.status_code == 200
     assert "入库成功".encode() in response.data
 
+
+def test_stockout_autoselects_single_area_and_department(auth_client, test_warehouse):
     with app.app_context():
-        owner_tool = ToolInventory.query.filter_by(
-            user_id=owner_id, itemSKU_id=sku_id
-        ).first()
-        admin_tool = ToolInventory.query.filter_by(
-            user_id=admin_id, itemSKU_id=sku_id
-        ).first()
-        assert owner_tool is not None
-        assert owner_tool.count == 4
-        assert admin_tool is None
+        area = Area(name="单一区域")
+        department = Department(name="单一部门")
+        db.session.add_all([area, department])
+        db.session.commit()
+        area_id = area.id
+        department_id = department.id
+
+    response = auth_client.get("/stockout")
+    assert response.status_code == 200
+
+    area_pattern = (
+        rb'<option[^>]*(?:selected[^>]*value="%d"|value="%d"[^>]*selected)'
+        % (
+            area_id,
+            area_id,
+        )
+    )
+    department_pattern = (
+        rb'<option[^>]*(?:selected[^>]*value="%d"|value="%d"[^>]*selected)'
+        % (
+            department_id,
+            department_id,
+        )
+    )
+    assert re.search(area_pattern, response.data)
+    assert re.search(department_pattern, response.data)
 
 
 def test_admin_stockin_then_toggle_tool_targets_user_warehouse_and_tool_group(

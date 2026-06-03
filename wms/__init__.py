@@ -5,7 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
-
+from wms.settings import load_runtime_config, sync_initial_reference_data
 
 app = Flask(__name__)
 
@@ -37,6 +37,7 @@ app.config["SQLALCHEMY_POOL_RECYCLE"] = 1800
 app.config["SQLALCHEMY_MAX_OVERFLOW"] = 20
 app.secret_key = os.getenv("SECRET_KEY", "dev")
 app.config["BOOTSTRAP_SERVE_LOCAL"] = True
+load_runtime_config(app)
 bootstrap = Bootstrap5(app)
 csrf = CSRFProtect(app)
 login_manager = LoginManager(app)
@@ -55,7 +56,19 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_user():
-    return dict(user=current_user)
+    return dict(user=current_user, site_name=app.config["SITE_NAME"])
+
+
+@app.before_request
+def ensure_reference_data():
+    if app.testing:
+        return
+
+    if app.extensions.get("wms_reference_data_synced"):
+        return
+
+    if sync_initial_reference_data():
+        app.extensions["wms_reference_data_synced"] = True
 
 
 from wms import routes, commands  # noqa : F401

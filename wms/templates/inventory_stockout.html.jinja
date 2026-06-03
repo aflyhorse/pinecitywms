@@ -69,7 +69,8 @@
             const selects = document.querySelectorAll('.select-with-placeholder');
             selects.forEach(select => {
                 const placeholder = select.getAttribute('data-placeholder');
-                if (placeholder) {
+                const hasSelectedOption = Array.from(select.options).some(option => option.selected);
+                if (placeholder && !hasSelectedOption) {
                     const option = document.createElement('option');
                     option.value = '';
                     option.textContent = placeholder;

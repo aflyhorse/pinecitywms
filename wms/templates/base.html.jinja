@@ -8,14 +8,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="description" content="青松城设备科仓库管理系统 - 用于管理设备和物品的仓库管理系统">
+    <meta name="description" content="{{ site_name }} - 用于管理设备和物品的仓库管理系统">
     <meta name="keywords" content="仓库管理,设备管理,物品管理,青松城,设备科">
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="alternate icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     {% block styles %}
     {{ bootstrap.load_css() }}
     {% endblock styles %}
-    <title>青松城设备科仓库管理系统</title>
+    <title>{{ site_name }}</title>
     {% endblock head %}
 </head>
 
@@ -25,7 +25,7 @@
         <div class="container-fluid">
             <div class="d-flex justify-content-start">
                 <ul class="navbar-nav">
-                    {{ render_nav_item('index', '青松城设备科仓库管理系统') }}
+                    {{ render_nav_item('index', site_name) }}
                     {% if current_user.is_authenticated %}
                     {{ render_nav_item('inventory', '库存管理') }}
                     {% if user.is_admin %}
