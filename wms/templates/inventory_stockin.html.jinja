@@ -38,8 +38,30 @@
             {% endfor %}
         </div>
         <button type="button" class="btn btn-primary" id="add-item">添加物品</button>
-        {{ render_field(form.submit) }}
+        {{ render_field(form.submit, id="stockin-submit") }}
     </form>
+</div>
+
+<div class="modal fade" id="stockinConfirmModal" tabindex="-1" aria-labelledby="stockinConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="stockinConfirmModalLabel">确认入库仓库</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">
+                    你本次入库的仓库是
+                    <span id="stockin-confirm-warehouse" class="text-danger fw-bold fs-3"></span>
+                    ，是否确认？
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="stockin-confirm-btn">确认入库</button>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock content %}
 
@@ -47,8 +69,30 @@
 {{ super() }}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const form = document.querySelector('form');
         const addItemButton = document.getElementById('add-item');
         const itemsDiv = document.getElementById('items');
+        const warehouseSelect = document.getElementById('warehouse');
+        const submitButton = document.getElementById('stockin-submit');
+        const confirmModalElement = document.getElementById('stockinConfirmModal');
+        const confirmWarehouse = document.getElementById('stockin-confirm-warehouse');
+        const confirmButton = document.getElementById('stockin-confirm-btn');
+        const confirmModal = bootstrap.Modal.getOrCreateInstance(confirmModalElement);
+        let skipConfirm = false;
+
+        function getSelectedWarehouseName() {
+            if (!warehouseSelect || warehouseSelect.selectedIndex < 0) {
+                return '';
+            }
+
+            return warehouseSelect.options[warehouseSelect.selectedIndex].text.trim();
+        }
+
+        function openWarehouseConfirm() {
+            const warehouseName = getSelectedWarehouseName();
+            confirmWarehouse.textContent = warehouseName || '当前选择的仓库';
+            confirmModal.show();
+        }
 
         // Handle adding new item
         addItemButton.addEventListener('click', function () {
@@ -242,7 +286,6 @@
         });
 
         // Handle form submission with the hidden IDs
-        const form = document.querySelector('form');
         form.addEventListener('submit', function (event) {
             const itemInputs = document.querySelectorAll('[name$="item_id"]');
             let hasError = false;
@@ -283,6 +326,21 @@
                     hiddenField.value = itemId;
                 }
             }
+        });
+
+        form.addEventListener('submit', function (event) {
+            if (skipConfirm) {
+                return;
+            }
+
+            event.preventDefault();
+            openWarehouseConfirm();
+        });
+
+        confirmButton.addEventListener('click', function () {
+            skipConfirm = true;
+            confirmModal.hide();
+            form.requestSubmit(submitButton);
         });
     });
 </script>

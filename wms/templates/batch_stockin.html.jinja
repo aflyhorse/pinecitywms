@@ -40,12 +40,67 @@
 </div>
 
 <script>
-document.getElementById('uploadForm').addEventListener('submit', function(e) {
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('uploadForm');
     const submitBtn = document.getElementById('submitBtn');
-    submitBtn.classList.remove('btn-success');
-    submitBtn.classList.add('btn-secondary');
-    submitBtn.disabled = true;
-    submitBtn.value = '已上传，处理中……';
+    const warehouseSelect = form.querySelector('[name="warehouse"]');
+    const modalElHtml = `
+    <div class="modal fade" id="batchStockinConfirmModal" tabindex="-1" aria-labelledby="batchStockinConfirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="batchStockinConfirmModalLabel">确认入库仓库</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">你本次批量入库的仓库是 <span id="batchstockin-confirm-warehouse" class="text-danger fw-bold fs-3"></span> ，是否确认？</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-danger" id="batchstockin-confirm-btn">确认上传</button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+
+    // Append modal to body
+    document.body.insertAdjacentHTML('beforeend', modalElHtml);
+    const modalEl = document.getElementById('batchStockinConfirmModal');
+    const confirmBtn = document.getElementById('batchstockin-confirm-btn');
+    const confirmWarehouseSpan = document.getElementById('batchstockin-confirm-warehouse');
+    const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    let skipConfirm = false;
+
+    function getWarehouseName() {
+        if (!warehouseSelect) return '';
+        if (warehouseSelect.tagName.toLowerCase() === 'select') {
+            return warehouseSelect.options[warehouseSelect.selectedIndex]?.text || '';
+        }
+        return warehouseSelect.value || '';
+    }
+
+    form.addEventListener('submit', function (e) {
+        if (skipConfirm) return;
+        e.preventDefault();
+        confirmWarehouseSpan.textContent = getWarehouseName() || '当前选择的仓库';
+        bsModal.show();
+    });
+
+    confirmBtn.addEventListener('click', function () {
+        // Change UI to uploading state then submit
+        skipConfirm = true;
+        submitBtn.classList.remove('btn-success');
+        submitBtn.classList.add('btn-secondary');
+        submitBtn.disabled = true;
+        // If it's an <input type="submit"> change its value, else change text
+        if (submitBtn.tagName.toLowerCase() === 'input') {
+            submitBtn.value = '已上传，处理中……';
+        } else {
+            submitBtn.textContent = '已上传，处理中……';
+        }
+        bsModal.hide();
+        form.requestSubmit();
+    });
 });
 </script>
 {% endblock %}
