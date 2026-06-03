@@ -8,6 +8,7 @@ from wms.models import (
     User,
     Warehouse,
     WarehouseItemSKU,
+    ToolInventory,
 )
 from werkzeug.security import generate_password_hash
 from wms import app, db
@@ -1438,6 +1439,98 @@ def test_revoke_receipt(client, test_user, regular_user):
         follow_redirects=True,
     )
     assert "此单据已被撤销".encode() in response.data
+
+
+@pytest.mark.usefixtures("test_item")
+def test_revoke_tool_stockin_receipt_clears_tool_inventory(
+    client, test_user, regular_user
+):
+    """Test that revoking a tool stockin receipt also rolls back tool inventory."""
+    with app.app_context():
+        user_warehouse = Warehouse(name="Tool Warehouse", owner=regular_user)
+        db.session.add(user_warehouse)
+        db.session.flush()
+
+        tool_item = Item(name="Tool Revoke Item", is_tool=True)
+        db.session.add(tool_item)
+        sku = ItemSKU(item=tool_item, brand="Tool Brand", spec="Tool Spec")
+        db.session.add(sku)
+        db.session.flush()
+
+        stockin_receipt = Receipt(
+            operator=regular_user,
+            warehouse=user_warehouse,
+            type=ReceiptType.STOCKIN,
+            refcode="TOOL-STOCKIN-TO-REVOKE",
+        )
+        db.session.add(stockin_receipt)
+        db.session.flush()
+
+        stockin_transaction = Transaction(
+            itemSKU=sku,
+            count=6,
+            price=88.00,
+            receipt=stockin_receipt,
+        )
+        db.session.add(stockin_transaction)
+        db.session.commit()
+
+        stockin_receipt.update_warehouse_item_skus()
+
+        tool_inventory = ToolInventory(
+            user_id=regular_user.id,
+            itemSKU_id=sku.id,
+            count=6,
+            pending_scrap=0,
+        )
+        db.session.add(tool_inventory)
+        db.session.commit()
+
+        receipt_id = stockin_receipt.id
+
+        warehouse_item = (
+            db.session.query(WarehouseItemSKU)
+            .filter_by(warehouse_id=user_warehouse.id, itemSKU_id=sku.id)
+            .first()
+        )
+        assert warehouse_item.count == 6
+
+        tool_row = (
+            db.session.query(ToolInventory)
+            .filter_by(user_id=regular_user.id, itemSKU_id=sku.id)
+            .first()
+        )
+        assert tool_row.count == 6
+
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+
+    response = client.post(
+        f"/receipt/{receipt_id}/revoke",
+        data={"reason": "Tool stockin rollback test"},
+        follow_redirects=True,
+    )
+    assert "单据已成功撤销".encode() in response.data
+
+    with app.app_context():
+        receipt = db.session.get(Receipt, receipt_id)
+        assert receipt.revoked is True
+
+        warehouse_item = (
+            db.session.query(WarehouseItemSKU)
+            .filter_by(warehouse_id=user_warehouse.id, itemSKU_id=sku.id)
+            .first()
+        )
+        assert warehouse_item.count == 0
+
+        tool_row = (
+            db.session.query(ToolInventory)
+            .filter_by(user_id=regular_user.id, itemSKU_id=sku.id)
+            .first()
+        )
+        assert tool_row.count == 0
 
 
 @pytest.mark.usefixtures("test_item")

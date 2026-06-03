@@ -13,6 +13,7 @@ from wms.models import (
     ItemSKU,
     Item,
     User,
+    ToolInventory,
 )
 from datetime import datetime, timedelta
 from sqlalchemy.orm import joinedload
@@ -886,6 +887,25 @@ def revoke_receipt(receipt_id):
         db.session.commit()
         # Update warehouse inventory with the counter transactions
         counter_receipt.update_warehouse_item_skus()
+        # Mirror the stockin/takestock tool inventory sync for tool SKUs only.
+        if receipt.type in (ReceiptType.STOCKIN, ReceiptType.TAKESTOCK):
+            tool_owner_id = receipt.warehouse.owner_id
+            if tool_owner_id is not None:
+                for transaction in counter_receipt.transactions:
+                    sku = db.session.get(ItemSKU, transaction.itemSKU_id)
+                    if sku and sku.item.is_tool:
+                        ti = ToolInventory.query.filter_by(
+                            user_id=tool_owner_id, itemSKU_id=sku.id
+                        ).first()
+                        if ti is None:
+                            ti = ToolInventory(
+                                user_id=tool_owner_id,
+                                itemSKU_id=sku.id,
+                                count=0,
+                                pending_scrap=0,
+                            )
+                            db.session.add(ti)
+                        ti.count += transaction.count
         db.session.commit()
         flash("单据已成功撤销", "success")
     except Exception as e:
