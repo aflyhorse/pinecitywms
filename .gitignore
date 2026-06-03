@@ -4,6 +4,7 @@ __pycache__
 .venv
 
 data.db*
+config.ini
 
 .coverage
 htmlcov
