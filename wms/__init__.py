@@ -35,7 +35,6 @@ app.config["SQLALCHEMY_POOL_TIMEOUT"] = 30
 app.config["SQLALCHEMY_POOL_RECYCLE"] = 1800
 # Maximum number of connections to create beyond pool_size
 app.config["SQLALCHEMY_MAX_OVERFLOW"] = 20
-app.secret_key = os.getenv("SECRET_KEY", "dev")
 app.config["BOOTSTRAP_SERVE_LOCAL"] = True
 load_runtime_config(app)
 bootstrap = Bootstrap5(app)

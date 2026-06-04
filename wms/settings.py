@@ -1,6 +1,7 @@
 from configparser import ConfigParser
 from pathlib import Path
 from sqlalchemy.exc import OperationalError
+import os
 
 DEFAULT_SITE_NAME = "青松城设备科仓库管理系统"
 DEFAULT_PUBLIC_AREAS = [
@@ -97,6 +98,16 @@ def load_runtime_config(app) -> None:
             "seed", "recycle_warehouse_name", fallback=DEFAULT_RECYCLE_WAREHOUSE_NAME
         ).strip()
         or DEFAULT_RECYCLE_WAREHOUSE_NAME
+    )
+
+    # Load SECRET_KEY: environment variable takes precedence, then config.ini,
+    #  then existing app secret or a safe default for dev
+    secret_from_file = None
+    if parser.has_section("site"):
+        secret_from_file = parser.get("site", "secret_key", fallback=None)
+
+    app.secret_key = os.getenv(
+        "SECRET_KEY", secret_from_file or app.secret_key or "dev"
     )
 
 
