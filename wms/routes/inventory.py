@@ -333,12 +333,21 @@ def stockout():
 
     # Populate form choices
     form.warehouse.choices = [(w.id, w.name) for w in warehouses]
-    form.area.choices = [(a.id, a.name) for a in areas]
-    form.department.choices = [(d.id, d.name) for d in departments]
+    # Add empty placeholder option first - browser will select first option by default
+    # Only auto-select when there's exactly one choice
     if len(areas) == 1:
+        form.area.choices = [(a.id, a.name) for a in areas]
         form.area.data = areas[0].id
+    else:
+        form.area.choices = [(None, "请选择区域")] + [(a.id, a.name) for a in areas]
+
     if len(departments) == 1:
+        form.department.choices = [(d.id, d.name) for d in departments]
         form.department.data = departments[0].id
+    else:
+        form.department.choices = [(None, "请选择部门")] + [
+            (d.id, d.name) for d in departments
+        ]
 
     # Initialize items list
     items = []

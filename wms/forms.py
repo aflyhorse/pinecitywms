@@ -22,6 +22,12 @@ from wtforms.validators import (
 )
 
 
+def coerce_int_or_none(value):
+    if value is None or value == "" or value == "None":
+        return None
+    return int(value)
+
+
 class LoginForm(FlaskForm):
     username = StringField("用户名", validators=[DataRequired(), Length(1, 20)])
     password = PasswordField("密码", validators=[DataRequired(), Length(1, 40)])
@@ -128,7 +134,7 @@ class StockOutForm(FlaskForm):
     warehouse = SelectField("仓库", coerce=int, validators=[InputRequired()])
     area = SelectField(
         "区域",
-        coerce=int,
+        coerce=coerce_int_or_none,
         validators=[InputRequired()],
         render_kw={
             "data-placeholder": "请选择区域",
@@ -137,7 +143,7 @@ class StockOutForm(FlaskForm):
     )
     department = SelectField(
         "部门",
-        coerce=int,
+        coerce=coerce_int_or_none,
         validators=[InputRequired()],
         render_kw={
             "data-placeholder": "请选择部门",

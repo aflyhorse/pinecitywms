@@ -65,20 +65,6 @@
     {{ super() }}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Handle placeholder for select fields
-            const selects = document.querySelectorAll('.select-with-placeholder');
-            selects.forEach(select => {
-                const placeholder = select.getAttribute('data-placeholder');
-                const hasSelectedOption = Array.from(select.options).some(option => option.selected);
-                if (placeholder && !hasSelectedOption) {
-                    const option = document.createElement('option');
-                    option.value = '';
-                    option.textContent = placeholder;
-                    option.selected = true;
-                    option.disabled = true;
-                    select.prepend(option);
-                }
-            });
             const addItemButton = document.getElementById('add-item');
             const itemsDiv = document.getElementById('items');
             const warehouseSelect = document.querySelector('[name="warehouse"]');
