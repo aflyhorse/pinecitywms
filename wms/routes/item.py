@@ -118,7 +118,7 @@ def item_create():
         db.session.add(sku)
         db.session.commit()
 
-        flash("物品添加成功。", "success")
+        flash(f"物品添加成功，物料编号：{sku.id}。", "success")
         return redirect(url_for("item"))
 
     return render_template("item_create.html.jinja", form=form, items=items)
