@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$SCRIPT_DIR"
 LOG_DIR="$REPO_ROOT/logs"
 PID_FILE="$REPO_ROOT/wms.pid"
+PORT_FILE="$REPO_ROOT/wms.port"
 
 resolve_gunicorn() {
     if [[ -x "$REPO_ROOT/.venv/bin/gunicorn" ]]; then
@@ -26,12 +27,15 @@ usage() {
 Usage:
   wms.sh start [port]
   wms.sh stop
+  wms.sh restart [port]
   wms.sh status
 
 Examples:
   wms.sh start
   wms.sh start 8080
   wms.sh stop
+  wms.sh restart
+  wms.sh restart 8080
   wms.sh status
 EOF
 }
@@ -64,6 +68,21 @@ current_pid() {
     return 0
 }
 
+current_port() {
+    local port=""
+
+    if [[ -f "$PORT_FILE" ]]; then
+        port="$(<"$PORT_FILE")"
+        if [[ "$port" =~ ^[0-9]+$ ]]; then
+            printf '%s\n' "$port"
+            return 0
+        fi
+    fi
+
+    printf '\n'
+    return 0
+}
+
 start_server() {
     local gunicorn_bin port pid log
 
@@ -78,6 +97,7 @@ start_server() {
     fi
 
     log="$LOG_DIR/$(date --iso-8601).log"
+    printf '%s\n' "$port" > "$PORT_FILE"
     nohup "$gunicorn_bin" --bind "0.0.0.0:$port" --workers=3 --pid "$PID_FILE" wsgi:app &>> "$log" &
     echo "Started on port $port. Log: $log"
 }
@@ -93,6 +113,7 @@ stop_server() {
 
     kill "$pid" >/dev/null 2>&1 || true
     rm -f "$PID_FILE"
+    rm -f "$PORT_FILE"
     echo "Stopped pid $pid."
 }
 
@@ -106,6 +127,22 @@ status_server() {
     fi
 
     echo "Not running."
+}
+
+restart_server() {
+    local port
+
+    port="${1:-}"
+    if [[ -z "$port" ]]; then
+        port="$(current_port)"
+        if [[ -z "$port" ]]; then
+            port="8000"
+        fi
+    fi
+
+    stop_server
+    sleep 1
+    start_server "$port"
 }
 
 if [[ $# -lt 1 || $# -gt 2 ]]; then
@@ -123,6 +160,9 @@ case "$1" in
             exit 1
         fi
         stop_server
+        ;;
+    restart)
+        restart_server "${2:-}"
         ;;
     status)
         if [[ $# -ne 1 ]]; then

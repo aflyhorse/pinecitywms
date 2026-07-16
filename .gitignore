@@ -6,6 +6,7 @@ __pycache__
 data.db*
 config.ini
 wms.pid
+wms.port
 
 .coverage
 htmlcov
