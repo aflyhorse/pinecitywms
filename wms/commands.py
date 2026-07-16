@@ -9,6 +9,7 @@ from wms.models import (
     ReceiptType,
 )
 import click
+import uuid
 
 
 @app.cli.command()
@@ -92,3 +93,19 @@ def forge():
     db.session.commit()
 
     click.echo("Data forging done.")
+
+
+@app.cli.command()
+def resetpwd():
+    user = db.session.get(User, 1)
+    if user is None:
+        click.echo("User with id=1 not found.", err=True)
+        return
+
+    new_password = uuid.uuid4().hex[:16]
+    user.set_password(new_password)
+    user.is_admin = True
+    db.session.commit()
+    click.echo(f"Successfully reset password for user {user.username} (id=1)")
+    click.echo(f"New password: {new_password}")
+    click.echo("Note: This password is only shown once. Please change it after login.")
