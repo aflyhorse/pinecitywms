@@ -1,6 +1,9 @@
 [site]
 name = 青松城设备科仓库管理系统
 secret_key = keep_this_secret
+auto_generate_stockin_refcode = false
+manual_receipt_date = false
+manual_item_sku_id = false
 
 [seed]
 public_areas =

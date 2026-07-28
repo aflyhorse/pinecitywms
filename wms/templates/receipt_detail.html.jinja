@@ -25,7 +25,7 @@
                         盘点
                         {% endif %}
                     </p>
-                    <p><strong>日期：</strong> {{ receipt.date.strftime('%Y-%m-%d %H:%M') }}</p>
+                    <p><strong>日期：</strong> {{ receipt.date.strftime('%Y-%m-%d') if manual_receipt_date else receipt.date.strftime('%Y-%m-%d %H:%M') }}</p>
                     <p><strong>仓库：</strong> {{ receipt.warehouse.name }}</p>
                     <p><strong>操作员：</strong> {{ receipt.operator.nickname }}</p>
                     {% if receipt.refcode %}

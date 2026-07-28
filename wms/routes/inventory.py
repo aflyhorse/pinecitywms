@@ -18,8 +18,9 @@ from wms.forms import StockInForm, ItemSearchForm, StockOutForm
 from sqlalchemy import and_
 from io import BytesIO
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date, time
 import uuid
+from wtforms.validators import InputRequired, Length
 
 
 def _sync_tool_inventory_stockin(receipt: Receipt):
@@ -50,6 +51,15 @@ def _escape_like(val: str) -> str:
     if val is None:
         return val
     return val.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _generate_stockin_refcode() -> str:
+    return f"STOCKIN-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+
+
+def _build_receipt_datetime(selected_date: date | None) -> datetime:
+    target_date = selected_date or date.today()
+    return datetime.combine(target_date, time(12, 0))
 
 
 @app.route("/inventory", methods=["GET", "POST"])
@@ -199,6 +209,19 @@ def inventory():
 @admin_required
 def stockin():
     form = StockInForm()
+    auto_generate_refcode = app.config.get("AUTO_GENERATE_STOCKIN_REFCODE", False)
+    manual_receipt_date = app.config.get("MANUAL_RECEIPT_DATE", False)
+
+    if auto_generate_refcode:
+        form.refcode.validators = [Length(1, 30)]
+        if request.method == "GET" and not form.refcode.data:
+            form.refcode.data = _generate_stockin_refcode()
+
+    if manual_receipt_date:
+        form.op_date.validators = [InputRequired()]
+        if request.method == "GET" and not form.op_date.data:
+            form.op_date.data = date.today()
+
     # Get all items with their display text, excluding disabled items
     skus = (
         db.session.query(ItemSKU).join(Item).filter(ItemSKU.disabled.is_(False)).all()
@@ -215,6 +238,9 @@ def stockin():
         if warehouse_exists:
             form.warehouse.data = session["last_warehouse_id"]
 
+    if auto_generate_refcode and request.method == "POST" and not form.refcode.data:
+        form.refcode.data = _generate_stockin_refcode()
+
     if form.validate_on_submit():
         # Check if the refcode already exists
         existing_receipt = Receipt.query.filter_by(refcode=form.refcode.data).first()
@@ -224,7 +250,11 @@ def stockin():
                 "danger",
             )
             return render_template(
-                "inventory_stockin.html.jinja", form=form, items=items
+                "inventory_stockin.html.jinja",
+                form=form,
+                items=items,
+                auto_generate_stockin_refcode=auto_generate_refcode,
+                manual_receipt_date=manual_receipt_date,
             )
 
         receipt = Receipt(
@@ -233,6 +263,8 @@ def stockin():
             warehouse_id=form.warehouse.data,
             type=ReceiptType.STOCKIN,
         )
+        if manual_receipt_date:
+            receipt.date = _build_receipt_datetime(form.op_date.data)
 
         try:
             db.session.add(receipt)
@@ -266,7 +298,11 @@ def stockin():
                     flash(f"无效的物品: {str(e)}", "danger")
                     db.session.rollback()
                     return render_template(
-                        "inventory_stockin.html.jinja", form=form, items=items
+                        "inventory_stockin.html.jinja",
+                        form=form,
+                        items=items,
+                        auto_generate_stockin_refcode=auto_generate_refcode,
+                        manual_receipt_date=manual_receipt_date,
                     )
 
             db.session.commit()
@@ -280,7 +316,11 @@ def stockin():
                 # If inventory update fails, roll back the whole operation to avoid inconsistency
                 flash(f"处理库存更新时出错: {e}", "danger")
                 return render_template(
-                    "inventory_stockin.html.jinja", form=form, items=items
+                    "inventory_stockin.html.jinja",
+                    form=form,
+                    items=items,
+                    auto_generate_stockin_refcode=auto_generate_refcode,
+                    manual_receipt_date=manual_receipt_date,
                 )
 
             # Save the selected warehouse to session
@@ -299,7 +339,11 @@ def stockin():
             else:
                 flash(f"处理过程中出现错误: {str(e)}", "danger")
             return render_template(
-                "inventory_stockin.html.jinja", form=form, items=items
+                "inventory_stockin.html.jinja",
+                form=form,
+                items=items,
+                auto_generate_stockin_refcode=auto_generate_refcode,
+                manual_receipt_date=manual_receipt_date,
             )
     else:
         if request.method == "POST":
@@ -307,7 +351,13 @@ def stockin():
                 for error in errors:
                     flash(f"Error in {field}: {error}", "danger")
 
-    return render_template("inventory_stockin.html.jinja", form=form, items=items)
+    return render_template(
+        "inventory_stockin.html.jinja",
+        form=form,
+        items=items,
+        auto_generate_stockin_refcode=auto_generate_refcode,
+        manual_receipt_date=manual_receipt_date,
+    )
 
 
 @app.route("/stockout", methods=["GET", "POST"])
@@ -318,6 +368,12 @@ def stockout():
         return redirect(url_for("inventory"))
 
     form = StockOutForm()
+    manual_receipt_date = app.config.get("MANUAL_RECEIPT_DATE", False)
+
+    if manual_receipt_date:
+        form.op_date.validators = [InputRequired()]
+        if request.method == "GET" and not form.op_date.data:
+            form.op_date.data = date.today()
 
     # Get all areas and departments
     areas = Area.query.all()
@@ -436,6 +492,7 @@ def stockout():
                 "inventory_stockout.html.jinja",
                 form=form,
                 items=items,
+                manual_receipt_date=manual_receipt_date,
             )
 
         # Find department by ID
@@ -446,6 +503,7 @@ def stockout():
                 "inventory_stockout.html.jinja",
                 form=form,
                 items=items,
+                manual_receipt_date=manual_receipt_date,
             )
 
         # Get the selected warehouse
@@ -456,6 +514,7 @@ def stockout():
                 "inventory_stockout.html.jinja",
                 form=form,
                 items=items,
+                manual_receipt_date=manual_receipt_date,
             )
 
         receipt = Receipt(
@@ -468,6 +527,8 @@ def stockout():
             location=form.location.data,
             note=None if not form.note.data else form.note.data,
         )
+        if manual_receipt_date:
+            receipt.date = _build_receipt_datetime(form.op_date.data)
         db.session.add(receipt)
         db.session.flush()
 
@@ -521,6 +582,7 @@ def stockout():
                         "inventory_stockout.html.jinja",
                         form=form,
                         items=items,
+                        manual_receipt_date=manual_receipt_date,
                     )
 
                 # Always use server-side average price to prevent client tampering
@@ -547,6 +609,7 @@ def stockout():
                     "inventory_stockout.html.jinja",
                     form=form,
                     items=items,
+                    manual_receipt_date=manual_receipt_date,
                 )
 
         db.session.commit()
@@ -563,6 +626,7 @@ def stockout():
         "inventory_stockout.html.jinja",
         form=form,
         items=items,
+        manual_receipt_date=manual_receipt_date,
     )
 
 

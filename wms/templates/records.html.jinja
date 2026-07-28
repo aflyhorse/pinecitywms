@@ -151,7 +151,7 @@
                             {% endif %}
                         </td>
                         {% endif %}
-                        <td>{{ transaction.receipt.date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ transaction.receipt.date.strftime('%Y-%m-%d') if manual_receipt_date else transaction.receipt.date.strftime('%Y-%m-%d %H:%M') }}</td>
                         <td><a href="{{ url_for('records', item_id=transaction.itemSKU.item.id, type=record_type) }}" style="color: #0d6efd; text-decoration: none;">{{ transaction.itemSKU.item.name }}</a></td>
                         <td>{{ transaction.itemSKU.id }}</td>
                         <td><a href="{{ url_for('records', sku_id=transaction.itemSKU.id, type=record_type) }}" style="color: #0d6efd; text-decoration: none;">{{ transaction.itemSKU.brand }} - {{ transaction.itemSKU.spec }}</a></td>

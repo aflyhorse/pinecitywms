@@ -12,6 +12,7 @@ from wtforms import (
     HiddenField,
     FileField,
     TextAreaField,
+    DateField,
 )
 from wtforms.validators import (
     DataRequired,
@@ -72,6 +73,7 @@ class ItemCreateForm(FlaskForm):
         validators=[DataRequired(), Length(1, 50)],
         render_kw={"placeholder": "若没有规格，填写'通用'"},
     )
+    sku_id = IntegerField("物料编码", render_kw={"placeholder": "物料编码"})
     is_tool = BooleanField("是否为工具", default=False)
     submit = SubmitField("添加")
 
@@ -99,6 +101,7 @@ class StockInItemForm(FlaskForm):
 
 class StockInForm(FlaskForm):
     refcode = StringField("入库单号", validators=[InputRequired(), Length(1, 30)])
+    op_date = DateField("操作日期", format="%Y-%m-%d")
     warehouse = SelectField("库房", coerce=int, validators=[InputRequired()])
     items = FieldList(FormField(StockInItemForm), min_entries=1)
     submit = SubmitField("入库")
@@ -131,6 +134,7 @@ class StockOutItemForm(FlaskForm):
 
 
 class StockOutForm(FlaskForm):
+    op_date = DateField("操作日期", format="%Y-%m-%d")
     warehouse = SelectField("仓库", coerce=int, validators=[InputRequired()])
     area = SelectField(
         "区域",

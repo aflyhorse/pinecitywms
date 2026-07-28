@@ -1,5 +1,6 @@
 import json
 import re
+from datetime import datetime
 
 import pytest
 from wms.models import (
@@ -21,6 +22,12 @@ from werkzeug.security import generate_password_hash
 
 def _sku_display(sku):
     return f"{sku.item.name} - {sku.brand} - {sku.spec}"
+
+
+def _set_app_flag(flag_name, value):
+    original_value = app.config.get(flag_name)
+    app.config[flag_name] = value
+    return original_value
 
 
 @pytest.mark.usefixtures("test_item")
@@ -54,6 +61,82 @@ def test_stockin(auth_client, test_warehouse):
         warehouse_item = warehouse.item_skus[0]
         assert warehouse_item.count == 10
         assert warehouse_item.average_price == 100.00
+
+
+def test_stockin_auto_generates_refcode_when_enabled(auth_client, test_warehouse):
+    original_auto = _set_app_flag("AUTO_GENERATE_STOCKIN_REFCODE", True)
+    original_manual_date = _set_app_flag("MANUAL_RECEIPT_DATE", False)
+    try:
+        with app.app_context():
+            item = Item(name="自动单号测试物品")
+            db.session.add(item)
+            db.session.flush()
+            sku = ItemSKU(item=item, brand="品牌", spec="规格")
+            db.session.add(sku)
+            db.session.commit()
+            sku_id = sku.id
+
+        response = auth_client.post(
+            "/stockin",
+            data={
+                "warehouse": test_warehouse,
+                "items-0-item_id": str(sku_id),
+                "items-0-quantity": "2",
+                "items-0-price": "15.00",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "入库成功".encode() in response.data
+
+        with app.app_context():
+            receipt = (
+                Receipt.query.filter_by(type=ReceiptType.STOCKIN)
+                .order_by(Receipt.id.desc())
+                .first()
+            )
+            assert receipt is not None
+            assert receipt.refcode.startswith("STOCKIN-")
+    finally:
+        app.config["AUTO_GENERATE_STOCKIN_REFCODE"] = original_auto
+        app.config["MANUAL_RECEIPT_DATE"] = original_manual_date
+
+
+def test_stockin_manual_date_uses_noon(auth_client, test_warehouse):
+    original_auto = _set_app_flag("AUTO_GENERATE_STOCKIN_REFCODE", False)
+    original_manual_date = _set_app_flag("MANUAL_RECEIPT_DATE", True)
+    try:
+        with app.app_context():
+            item = Item(name="手动日期测试物品")
+            db.session.add(item)
+            db.session.flush()
+            sku = ItemSKU(item=item, brand="品牌", spec="规格")
+            db.session.add(sku)
+            db.session.commit()
+            sku_id = sku.id
+
+        response = auth_client.post(
+            "/stockin",
+            data={
+                "refcode": "MANUAL-DATE-IN-001",
+                "op_date": "2026-07-03",
+                "warehouse": test_warehouse,
+                "items-0-item_id": str(sku_id),
+                "items-0-quantity": "3",
+                "items-0-price": "18.00",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "入库成功".encode() in response.data
+
+        with app.app_context():
+            receipt = Receipt.query.filter_by(refcode="MANUAL-DATE-IN-001").first()
+            assert receipt is not None
+            assert receipt.date == datetime(2026, 7, 3, 12, 0)
+    finally:
+        app.config["AUTO_GENERATE_STOCKIN_REFCODE"] = original_auto
+        app.config["MANUAL_RECEIPT_DATE"] = original_manual_date
 
 
 def test_tool_stockin_uses_warehouse_owner(auth_client):
@@ -335,6 +418,59 @@ def test_stockout_process(auth_client, test_warehouse, test_customer):
         warehouse = db.session.get(Warehouse, test_warehouse)
         warehouse_item = warehouse.item_skus[0]
         assert warehouse_item.count == 15  # 20 - 5 = 15
+
+
+@pytest.mark.usefixtures("test_item")
+def test_stockout_manual_date_uses_noon(auth_client, test_warehouse, test_customer):
+    original_manual_date = _set_app_flag("MANUAL_RECEIPT_DATE", True)
+    try:
+        with app.app_context():
+            sku = ItemSKU.query.first()
+            sku_display = _sku_display(sku)
+            sku_id = sku.id
+
+        stockin_response = auth_client.post(
+            "/stockin",
+            data={
+                "refcode": "MANUAL-DATE-OUT-SEED",
+                "op_date": "2026-07-04",
+                "warehouse": test_warehouse,
+                "items-0-item_id": str(sku.id),
+                "items-0-quantity": "6",
+                "items-0-price": "50.00",
+            },
+            follow_redirects=True,
+        )
+        assert stockin_response.status_code == 200
+
+        response = auth_client.post(
+            "/stockout",
+            data={
+                "op_date": "2026-07-04",
+                "warehouse": test_warehouse,
+                "area": test_customer["area"],
+                "department": test_customer["department"],
+                "location": "测试地点",
+                "items-0-item_id": sku_display,
+                "items-0-item_sku_id": str(sku_id),
+                "items-0-quantity": "2",
+                "items-0-price": "60.00",
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "出库成功".encode() in response.data
+
+        with app.app_context():
+            receipt = (
+                Receipt.query.filter_by(type=ReceiptType.STOCKOUT)
+                .order_by(Receipt.id.desc())
+                .first()
+            )
+            assert receipt is not None
+            assert receipt.date == datetime(2026, 7, 4, 12, 0)
+    finally:
+        app.config["MANUAL_RECEIPT_DATE"] = original_manual_date
 
 
 @pytest.mark.usefixtures("test_item")

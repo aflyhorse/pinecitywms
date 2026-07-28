@@ -5,6 +5,7 @@ from wms import app, db
 from wms.utils import admin_required, _escape_like, set_item_tool_status
 from wms.models import Item, ItemSKU
 from wms.forms import ItemSearchForm, ItemCreateForm
+from wtforms.validators import InputRequired
 
 
 @app.route("/item", methods=["GET", "POST"])
@@ -75,6 +76,9 @@ def item():
 @admin_required
 def item_create():
     form = ItemCreateForm()
+    manual_item_sku_id = app.config.get("MANUAL_ITEM_SKU_ID", False)
+    if manual_item_sku_id:
+        form.sku_id.validators = [InputRequired()]
     # Get items for datalist
     items = db.session.execute(select(Item)).scalars()
 
@@ -111,17 +115,55 @@ def item_create():
             else:
                 # SKU is already enabled
                 flash("物品和对应型号已存在", "danger")
-                return render_template("item_create.html.jinja", form=form, items=items)
+                return render_template(
+                    "item_create.html.jinja",
+                    form=form,
+                    items=items,
+                    manual_item_sku_id=manual_item_sku_id,
+                )
+
+        sku_id = form.sku_id.data
+        if manual_item_sku_id:
+            if sku_id is None:
+                flash("请输入物料编码", "danger")
+                return render_template(
+                    "item_create.html.jinja",
+                    form=form,
+                    items=items,
+                    manual_item_sku_id=manual_item_sku_id,
+                )
+
+            existing_manual_sku = db.session.get(ItemSKU, sku_id)
+            if existing_manual_sku:
+                flash("物料编码已存在", "danger")
+                return render_template(
+                    "item_create.html.jinja",
+                    form=form,
+                    items=items,
+                    manual_item_sku_id=manual_item_sku_id,
+                )
 
         # Create new SKU for the item
-        sku = ItemSKU(item_id=item.id, brand=form.brand.data, spec=form.spec.data)
+        sku_kwargs = {
+            "item_id": item.id,
+            "brand": form.brand.data,
+            "spec": form.spec.data,
+        }
+        if manual_item_sku_id:
+            sku_kwargs["id"] = sku_id
+        sku = ItemSKU(**sku_kwargs)
         db.session.add(sku)
         db.session.commit()
 
         flash(f"物品添加成功，物料编号：{sku.id}。", "success")
         return redirect(url_for("item"))
 
-    return render_template("item_create.html.jinja", form=form, items=items)
+    return render_template(
+        "item_create.html.jinja",
+        form=form,
+        items=items,
+        manual_item_sku_id=manual_item_sku_id,
+    )
 
 
 @app.route("/item/<int:itemSKU_id>/toggle_disabled", methods=["POST"])

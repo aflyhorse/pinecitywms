@@ -16,6 +16,12 @@ from datetime import datetime, timedelta
 import re
 
 
+def _set_app_flag(flag_name, value):
+    original_value = app.config.get(flag_name)
+    app.config[flag_name] = value
+    return original_value
+
+
 @pytest.mark.usefixtures("test_item")
 def test_records_access_control(client, regular_user, regular_warehouse):
     # Test access as regular (non-admin) user
@@ -245,6 +251,44 @@ def test_records_filtering(auth_client, test_warehouse, test_customer):
         b"Takestock verification note" in response.data
         or b'data-bs-toggle="tooltip"' in response.data
     )
+
+
+@pytest.mark.usefixtures("test_item")
+def test_records_show_date_only_when_manual_receipt_date_enabled(
+    auth_client, test_warehouse
+):
+    original_manual_date = _set_app_flag("MANUAL_RECEIPT_DATE", True)
+    try:
+        with app.app_context():
+            sku = ItemSKU.query.first()
+            receipt = Receipt(
+                operator_id=1,
+                refcode="DATE-ONLY-RECORD-TEST",
+                warehouse_id=test_warehouse,
+                type=ReceiptType.STOCKIN,
+                date=datetime(2026, 7, 3, 12, 0),
+            )
+            db.session.add(receipt)
+            db.session.flush()
+            db.session.add(
+                Transaction(itemSKU=sku, count=5, price=100.00, receipt=receipt)
+            )
+            db.session.commit()
+            receipt_id = receipt.id
+
+        response = auth_client.get(
+            "/records?type=stockin&refcode=DATE-ONLY-RECORD-TEST"
+        )
+        assert response.status_code == 200
+        assert b"2026-07-03" in response.data
+        assert b"12:00" not in response.data
+
+        detail_response = auth_client.get(f"/receipt/{receipt_id}")
+        assert detail_response.status_code == 200
+        assert b"2026-07-03" in detail_response.data
+        assert b"12:00" not in detail_response.data
+    finally:
+        app.config["MANUAL_RECEIPT_DATE"] = original_manual_date
 
 
 @pytest.mark.usefixtures("test_item")

@@ -7,7 +7,12 @@
     <h2>入库</h2>
     <form method="post">
         {{ form.csrf_token }}
+        {% if not auto_generate_stockin_refcode %}
         {{ render_field(form.refcode) }}
+        {% endif %}
+        {% if manual_receipt_date %}
+        {{ render_field(form.op_date) }}
+        {% endif %}
         {{ render_field(form.warehouse) }}
         <datalist id="item-ids">
             {% for id, name in items %}
@@ -78,7 +83,7 @@
         const confirmWarehouse = document.getElementById('stockin-confirm-warehouse');
         const confirmButton = document.getElementById('stockin-confirm-btn');
         const confirmModal = bootstrap.Modal.getOrCreateInstance(confirmModalElement);
-        let skipConfirm = false;
+        let skipConfirm = {% if skip_warehouse_confirm %}true{% else %}false{% endif %};
 
         function getSelectedWarehouseName() {
             if (!warehouseSelect || warehouseSelect.selectedIndex < 0) {

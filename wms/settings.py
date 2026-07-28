@@ -47,6 +47,9 @@ DEFAULT_DEPARTMENTS = [
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_NICKNAME = "办公室"
 DEFAULT_RECYCLE_WAREHOUSE_NAME = "回收仓库"
+DEFAULT_AUTO_GENERATE_STOCKIN_REFCODE = False
+DEFAULT_MANUAL_RECEIPT_DATE = False
+DEFAULT_MANUAL_ITEM_SKU_ID = False
 
 
 def _config_path(app) -> Path:
@@ -61,6 +64,15 @@ def _parse_list(raw_value: str) -> list[str]:
             if item:
                 values.append(item)
     return values
+
+
+def _parse_bool(
+    parser: ConfigParser, section: str, option: str, fallback: bool
+) -> bool:
+    try:
+        return parser.getboolean(section, option, fallback=fallback)
+    except ValueError:
+        return fallback
 
 
 def load_runtime_config(app) -> None:
@@ -98,6 +110,24 @@ def load_runtime_config(app) -> None:
             "seed", "recycle_warehouse_name", fallback=DEFAULT_RECYCLE_WAREHOUSE_NAME
         ).strip()
         or DEFAULT_RECYCLE_WAREHOUSE_NAME
+    )
+    app.config["AUTO_GENERATE_STOCKIN_REFCODE"] = _parse_bool(
+        parser,
+        "site",
+        "auto_generate_stockin_refcode",
+        DEFAULT_AUTO_GENERATE_STOCKIN_REFCODE,
+    )
+    app.config["MANUAL_RECEIPT_DATE"] = _parse_bool(
+        parser,
+        "site",
+        "manual_receipt_date",
+        DEFAULT_MANUAL_RECEIPT_DATE,
+    )
+    app.config["MANUAL_ITEM_SKU_ID"] = _parse_bool(
+        parser,
+        "site",
+        "manual_item_sku_id",
+        DEFAULT_MANUAL_ITEM_SKU_ID,
     )
 
     # Load SECRET_KEY: environment variable takes precedence, then config.ini,

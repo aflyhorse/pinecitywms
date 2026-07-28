@@ -26,6 +26,11 @@
         <h2>出库</h2>
         <form method="post" autocomplete="off" id="stockout-form">
             {{ form.csrf_token }}
+            {% if manual_receipt_date %}
+            <div class="row mb-3">
+                <div class="col-md-6">{{ render_field(form.op_date) }}</div>
+            </div>
+            {% endif %}
             <div class="row mb-3">
                 <div class="col-md-6">{{ render_field(form.warehouse) }}</div>
             </div>

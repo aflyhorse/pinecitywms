@@ -54,6 +54,7 @@ def records():
     sku_id = request.args.get("sku_id", type=int)
     page = request.args.get("page", 1, type=int)
     per_page = 20
+    manual_receipt_date = app.config.get("MANUAL_RECEIPT_DATE", False)
 
     # Get warehouses accessible by the current user
     if current_user.can_view_all_warehouses:
@@ -228,6 +229,7 @@ def records():
         current_sku=current_sku,
         warehouse_stocks=warehouse_stocks,
         request=request,
+        manual_receipt_date=manual_receipt_date,
     )
 
 
@@ -795,6 +797,7 @@ def receipt_detail(receipt_id):
     from wms.forms import RevokeReceiptForm
 
     revoke_form = RevokeReceiptForm()
+    manual_receipt_date = app.config.get("MANUAL_RECEIPT_DATE", False)
 
     return render_template(
         "receipt_detail.html.jinja",
@@ -802,6 +805,7 @@ def receipt_detail(receipt_id):
         can_revoke=can_revoke,
         is_admin=is_admin,
         revoke_form=revoke_form,
+        manual_receipt_date=manual_receipt_date,
     )
 
 

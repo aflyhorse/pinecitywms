@@ -42,6 +42,36 @@ def test_item_creation(auth_client):
     assert response.status_code == 200
     assert "物品添加成功".encode() in response.data
 
+
+def test_item_creation_with_manual_sku_id(auth_client):
+    original_manual_sku_id = app.config.get("MANUAL_ITEM_SKU_ID")
+    app.config["MANUAL_ITEM_SKU_ID"] = True
+    try:
+        response = auth_client.get("/item/create")
+        assert response.status_code == 200
+        assert b'name="sku_id"' in response.data
+
+        response = auth_client.post(
+            "/item/create",
+            data={
+                "item_name": "手动物料编码物品",
+                "brand": "手动品牌",
+                "spec": "手动规格",
+                "sku_id": "98765",
+                "is_tool": False,
+            },
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert "物品添加成功".encode() in response.data
+
+        with app.app_context():
+            sku = db.session.get(ItemSKU, 98765)
+            assert sku is not None
+            assert sku.item.name == "手动物料编码物品"
+    finally:
+        app.config["MANUAL_ITEM_SKU_ID"] = original_manual_sku_id
+
     # Get the first item from the database
     with app.app_context():
         existing_item = Item.query.first()
