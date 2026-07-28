@@ -217,11 +217,6 @@ def stockin():
         if request.method == "GET" and not form.refcode.data:
             form.refcode.data = _generate_stockin_refcode()
 
-    if manual_receipt_date:
-        form.op_date.validators = [InputRequired()]
-        if request.method == "GET" and not form.op_date.data:
-            form.op_date.data = date.today()
-
     # Get all items with their display text, excluding disabled items
     skus = (
         db.session.query(ItemSKU).join(Item).filter(ItemSKU.disabled.is_(False)).all()
@@ -263,7 +258,7 @@ def stockin():
             warehouse_id=form.warehouse.data,
             type=ReceiptType.STOCKIN,
         )
-        if manual_receipt_date:
+        if manual_receipt_date and form.op_date.data:
             receipt.date = _build_receipt_datetime(form.op_date.data)
 
         try:
@@ -369,11 +364,6 @@ def stockout():
 
     form = StockOutForm()
     manual_receipt_date = app.config.get("MANUAL_RECEIPT_DATE", False)
-
-    if manual_receipt_date:
-        form.op_date.validators = [InputRequired()]
-        if request.method == "GET" and not form.op_date.data:
-            form.op_date.data = date.today()
 
     # Get all areas and departments
     areas = Area.query.all()
@@ -527,7 +517,7 @@ def stockout():
             location=form.location.data,
             note=None if not form.note.data else form.note.data,
         )
-        if manual_receipt_date:
+        if manual_receipt_date and form.op_date.data:
             receipt.date = _build_receipt_datetime(form.op_date.data)
         db.session.add(receipt)
         db.session.flush()

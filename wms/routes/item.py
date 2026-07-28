@@ -77,8 +77,6 @@ def item():
 def item_create():
     form = ItemCreateForm()
     manual_item_sku_id = app.config.get("MANUAL_ITEM_SKU_ID", False)
-    if manual_item_sku_id:
-        form.sku_id.validators = [InputRequired()]
     # Get items for datalist
     items = db.session.execute(select(Item)).scalars()
 
@@ -123,16 +121,7 @@ def item_create():
                 )
 
         sku_id = form.sku_id.data
-        if manual_item_sku_id:
-            if sku_id is None:
-                flash("请输入物料编码", "danger")
-                return render_template(
-                    "item_create.html.jinja",
-                    form=form,
-                    items=items,
-                    manual_item_sku_id=manual_item_sku_id,
-                )
-
+        if manual_item_sku_id and sku_id is not None:
             existing_manual_sku = db.session.get(ItemSKU, sku_id)
             if existing_manual_sku:
                 flash("物料编码已存在", "danger")
@@ -149,7 +138,7 @@ def item_create():
             "brand": form.brand.data,
             "spec": form.spec.data,
         }
-        if manual_item_sku_id:
+        if manual_item_sku_id and sku_id is not None:
             sku_kwargs["id"] = sku_id
         sku = ItemSKU(**sku_kwargs)
         db.session.add(sku)
