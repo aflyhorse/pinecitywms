@@ -20,7 +20,7 @@ from io import BytesIO
 import pandas as pd
 from datetime import datetime, date, time
 import uuid
-from wtforms.validators import InputRequired, Length
+from wtforms.validators import Length
 
 
 def _sync_tool_inventory_stockin(receipt: Receipt):

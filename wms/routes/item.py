@@ -5,7 +5,6 @@ from wms import app, db
 from wms.utils import admin_required, _escape_like, set_item_tool_status
 from wms.models import Item, ItemSKU
 from wms.forms import ItemSearchForm, ItemCreateForm
-from wtforms.validators import InputRequired
 
 
 @app.route("/item", methods=["GET", "POST"])
