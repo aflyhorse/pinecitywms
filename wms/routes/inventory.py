@@ -217,6 +217,9 @@ def stockin():
         if request.method == "GET" and not form.refcode.data:
             form.refcode.data = _generate_stockin_refcode()
 
+    if request.method == "GET" and manual_receipt_date:
+        form.op_date.data = datetime.now().date()
+
     # Get all items with their display text, excluding disabled items
     skus = (
         db.session.query(ItemSKU).join(Item).filter(ItemSKU.disabled.is_(False)).all()
@@ -364,6 +367,9 @@ def stockout():
 
     form = StockOutForm()
     manual_receipt_date = app.config.get("MANUAL_RECEIPT_DATE", False)
+
+    if request.method == "GET" and manual_receipt_date:
+        form.op_date.data = datetime.now().date()
 
     # Get all areas and departments
     areas = Area.query.all()
