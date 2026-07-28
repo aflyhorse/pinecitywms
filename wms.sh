@@ -87,7 +87,15 @@ start_server() {
     local gunicorn_bin port pid log
 
     gunicorn_bin="$(resolve_gunicorn)"
-    port="$(normalize_start_port "${1:-8000}")"
+    local saved_port
+    saved_port="$(current_port)"
+    if [[ -n "${1:-}" ]]; then
+        port="$(normalize_start_port "$1")"
+    elif [[ -n "$saved_port" ]]; then
+        port="$saved_port"
+    else
+        port="8000"
+    fi
     mkdir -p "$LOG_DIR"
 
     pid="$(current_pid)"
@@ -113,7 +121,6 @@ stop_server() {
 
     kill "$pid" >/dev/null 2>&1 || true
     rm -f "$PID_FILE"
-    rm -f "$PORT_FILE"
     echo "Stopped pid $pid."
 }
 
@@ -152,7 +159,7 @@ fi
 
 case "$1" in
     start)
-        start_server "${2:-8000}"
+        start_server "${2:-}"
         ;;
     stop)
         if [[ $# -ne 1 ]]; then
