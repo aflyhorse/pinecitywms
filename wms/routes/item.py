@@ -78,7 +78,7 @@ def item_create():
     form = ItemCreateForm()
     manual_item_sku_id = app.config.get("MANUAL_ITEM_SKU_ID", False)
     # Get items for datalist
-    items = db.session.execute(select(Item)).scalars()
+    items = list(db.session.execute(select(Item)).scalars())
     item_names = sorted([item.name for item in items])
     item_names_json = json.dumps(item_names, ensure_ascii=False)
 
