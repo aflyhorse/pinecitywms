@@ -23,5 +23,90 @@
             <a href="{{ url_for('item') }}" class="btn btn-secondary">返回</a>
         </div>
     </form>
+
+    <div id="sku-reference" class="mt-4" style="display: none;">
+        <h5 class="mb-3">该物品已有型号</h5>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered">
+                <thead>
+                    <tr>
+                        <th>物料编号</th>
+                        <th>品牌</th>
+                        <th>规格</th>
+                    </tr>
+                </thead>
+                <tbody id="sku-reference-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 {% endblock content %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    (function () {
+        const itemNames = {{ item_names_json|safe }};
+        const itemNameInput = document.getElementById('item_name');
+        const skuReference = document.getElementById('sku-reference');
+        const skuReferenceBody = document.getElementById('sku-reference-body');
+        let debounceTimer = null;
+
+        function hideSkuList() {
+            skuReference.style.display = 'none';
+            skuReferenceBody.innerHTML = '';
+        }
+
+        function showSkuList(skus) {
+            if (!skus || skus.length === 0) {
+                hideSkuList();
+                return;
+            }
+            skuReferenceBody.innerHTML = skus.map(function (sku) {
+                return '<tr>' +
+                    '<td>' + String(sku.id).padStart(4, '0') + '</td>' +
+                    '<td>' + sku.brand + '</td>' +
+                    '<td>' + sku.spec + '</td>' +
+                    '</tr>';
+            }).join('');
+            skuReference.style.display = 'block';
+        }
+
+        function fetchAndShowSkus(name) {
+            fetch('/api/item/skus?name=' + encodeURIComponent(name))
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (data.success) {
+                        showSkuList(data.skus);
+                    } else {
+                        hideSkuList();
+                    }
+                })
+                .catch(function () {
+                    hideSkuList();
+                });
+        }
+
+        function onInputChange() {
+            const val = itemNameInput.value.trim();
+            if (!val) {
+                hideSkuList();
+                return;
+            }
+            if (itemNames.indexOf(val) !== -1) {
+                fetchAndShowSkus(val);
+            } else {
+                hideSkuList();
+            }
+        }
+
+        itemNameInput.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(onInputChange, 200);
+        });
+
+        itemNameInput.addEventListener('change', onInputChange);
+    })();
+</script>
+{% endblock scripts %}

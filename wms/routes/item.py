@@ -1,6 +1,7 @@
 from flask import render_template, url_for, redirect, flash, request, jsonify
 from flask_login import login_required
 from sqlalchemy import select, distinct, desc
+import json
 from wms import app, db
 from wms.utils import admin_required, _escape_like, set_item_tool_status
 from wms.models import Item, ItemSKU
@@ -78,6 +79,8 @@ def item_create():
     manual_item_sku_id = app.config.get("MANUAL_ITEM_SKU_ID", False)
     # Get items for datalist
     items = db.session.execute(select(Item)).scalars()
+    item_names = sorted([item.name for item in items])
+    item_names_json = json.dumps(item_names, ensure_ascii=False)
 
     if form.validate_on_submit():
         # Check if item with this name already exists
@@ -116,6 +119,7 @@ def item_create():
                     "item_create.html.jinja",
                     form=form,
                     items=items,
+                    item_names_json=item_names_json,
                     manual_item_sku_id=manual_item_sku_id,
                 )
 
@@ -128,6 +132,7 @@ def item_create():
                     "item_create.html.jinja",
                     form=form,
                     items=items,
+                    item_names_json=item_names_json,
                     manual_item_sku_id=manual_item_sku_id,
                 )
 
@@ -150,6 +155,7 @@ def item_create():
         "item_create.html.jinja",
         form=form,
         items=items,
+        item_names_json=item_names_json,
         manual_item_sku_id=manual_item_sku_id,
     )
 
@@ -175,6 +181,29 @@ def toggle_disabled(itemSKU_id):
             "message": "物品已{}。".format("禁用" if item_sku.disabled else "启用"),
         }
     )
+
+
+@app.route("/api/item/skus")
+@login_required
+@admin_required
+def item_skus():
+    name = request.args.get("name", "").strip()
+    if not name:
+        return jsonify({"success": False, "skus": []})
+
+    item = db.session.execute(select(Item).filter_by(name=name)).scalar_one_or_none()
+
+    if not item:
+        return jsonify({"success": False, "skus": []})
+
+    skus = (
+        db.session.execute(select(ItemSKU).filter_by(item_id=item.id, disabled=False))
+        .scalars()
+        .all()
+    )
+
+    sku_list = [{"id": sku.id, "brand": sku.brand, "spec": sku.spec} for sku in skus]
+    return jsonify({"success": True, "skus": sku_list})
 
 
 @app.route("/item/<int:item_id>/toggle_tool", methods=["POST"])

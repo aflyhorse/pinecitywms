@@ -220,3 +220,70 @@ def test_toggle_disabled_non_admin_access(client, regular_user):
     response = client.post("/item/1/toggle_disabled", follow_redirects=True)
     assert response.status_code == 200
     assert b"Unauthorized Access" in response.data
+
+
+def test_item_skus_api(auth_client):
+    """Test the /api/item/skus endpoint"""
+    # Create an item with multiple SKUs
+    with app.app_context():
+        item = Item(name="SKU API Test Item")
+        db.session.add(item)
+        db.session.flush()
+        sku1 = ItemSKU(item_id=item.id, brand="Brand A", spec="Spec A")
+        sku2 = ItemSKU(item_id=item.id, brand="Brand B", spec="Spec B")
+        db.session.add_all([sku1, sku2])
+        db.session.commit()
+        item_id = item.id
+        sku1_id = sku1.id
+        sku2_id = sku2.id
+
+    # Test fetching SKUs for existing item
+    response = auth_client.get("/api/item/skus?name=SKU%20API%20Test%20Item")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert len(data["skus"]) == 2
+
+    # Test fetching SKUs for non-existent item
+    response = auth_client.get("/api/item/skus?name=NonExistentItem")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is False
+    assert data["skus"] == []
+
+    # Test with empty name
+    response = auth_client.get("/api/item/skus?name=")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is False
+    assert data["skus"] == []
+
+    # Test with SKU disabled (should not appear)
+    with app.app_context():
+        sku = db.session.get(ItemSKU, sku1_id)
+        sku.disabled = True
+        db.session.commit()
+
+    response = auth_client.get("/api/item/skus?name=SKU%20API%20Test%20Item")
+    data = response.get_json()
+    assert data["success"] is True
+    assert len(data["skus"]) == 1
+    assert data["skus"][0]["brand"] == "Brand B"
+
+
+def test_item_skus_api_non_admin_access(client, regular_user):
+    """Test that non-admin users cannot access the SKU API"""
+    client.post(
+        "/login",
+        data={"username": "testuser", "password": "password123", "remember": "y"},
+    )
+    response = client.get("/api/item/skus?name=test")
+    assert response.status_code == 302  # Redirected to login or unauthorized
+
+
+def test_item_create_page_shows_sku_reference(auth_client):
+    """Test that the item create page includes SKU reference section"""
+    response = auth_client.get("/item/create")
+    assert response.status_code == 200
+    assert b"sku-reference" in response.data
+    assert "该物品已有型号".encode() in response.data
