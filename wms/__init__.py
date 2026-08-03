@@ -1,6 +1,7 @@
 import os
 from flask_bootstrap import Bootstrap5
 from flask import Flask
+from flask_compress import Compress
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
@@ -8,6 +9,7 @@ from flask_wtf.csrf import CSRFProtect
 from wms.settings import load_runtime_config, sync_initial_reference_data
 
 app = Flask(__name__)
+Compress(app)
 
 # Check if running in test mode
 is_testing = os.environ.get("TESTING") == "True"
