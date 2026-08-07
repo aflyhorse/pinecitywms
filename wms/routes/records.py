@@ -551,6 +551,248 @@ def statistics_usage():
     total_quantity = sum(data.total_usage for data in usage_data)
     total_value = sum((data.total_value or 0) for data in usage_data)
 
+    # Get areas and departments for detailed view
+    areas = Area.query.order_by(Area.id).all()
+    departments = Department.query.order_by(Department.id).all()
+
+    # Build base map from main query results
+    sku_base = {}
+    for data in usage_data:
+        sku, item = data[0], data[1]
+        sku_base[(sku.id, item.id)] = {
+            "itemsku": sku,
+            "item": item,
+            "total_usage": data.total_usage,
+            "average_price": data.average_price,
+            "total_value": data.total_value or Decimal("0"),
+        }
+
+    # Prepare detailed query with area + department breakdown
+    detailed_query = (
+        db.session.query(
+            ItemSKU,
+            Item,
+            Area.id.label("area_id"),
+            Department.id.label("dept_id"),
+            func.sum(Transaction.count * -1).label("usage"),
+            func.sum(Transaction.count * Transaction.price * Decimal("-1")).label(
+                "value"
+            ),
+        )
+        .join(Transaction)
+        .join(Receipt)
+        .join(Item)
+        .outerjoin(Area, Receipt.area_id == Area.id)
+        .outerjoin(Department, Receipt.department_id == Department.id)
+        .filter(Receipt.type == ReceiptType.STOCKOUT)
+        .filter(Receipt.revoked.is_(False))
+        .filter(Transaction.count < 0)
+        .group_by(ItemSKU.id, Item.id, Area.id, Department.id)
+    )
+
+    # Apply same filters to detailed query
+    if not current_user.can_view_all_warehouses:
+        detailed_query = detailed_query.join(Receipt.warehouse).filter(
+            (Warehouse.is_public.is_(True)) | (Warehouse.owner_id == current_user.id)
+        )
+
+    if warehouse_id:
+        if not current_user.can_view_all_warehouses:
+            allowed_warehouse_ids = [w.id for w in warehouses]
+            if int(warehouse_id) not in allowed_warehouse_ids:
+                warehouse_id = None
+        if warehouse_id:
+            detailed_query = detailed_query.filter(Receipt.warehouse_id == warehouse_id)
+
+    if start_date:
+        start_datetime = datetime.strptime(
+            f"{start_date} 00:00:00", "%Y-%m-%d %H:%M:%S"
+        )
+        detailed_query = detailed_query.filter(Receipt.date >= start_datetime)
+
+    if end_date:
+        end_datetime = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S")
+        detailed_query = detailed_query.filter(Receipt.date <= end_datetime)
+
+    if item_name:
+        detailed_query = detailed_query.filter(Item.name.ilike(f"%{item_name}%"))
+    if brand:
+        detailed_query = detailed_query.filter(ItemSKU.brand.ilike(f"%{brand}%"))
+    if spec:
+        detailed_query = detailed_query.filter(ItemSKU.spec.ilike(f"%{spec}%"))
+    if tool_only:
+        detailed_query = detailed_query.filter(Item.is_tool.is_(True))
+
+    # Aggregate raw detailed data
+    raw_rows = detailed_query.all()
+
+    # Build per-area and per-dept aggregations
+    # key: (sku_id, item_id) -> area_id -> [usage, value]
+    sku_area_agg = {}
+    # key: (sku_id, item_id) -> dept_id -> [usage, value]
+    sku_dept_agg = {}
+    # key: (sku_id, item_id) -> dept_id -> area_id -> [usage, value]
+    sku_dept_area_agg = {}
+
+    for row in raw_rows:
+        key = (row.ItemSKU.id, row.Item.id)
+        area_id = row.area_id
+        dept_id = row.dept_id
+        usage = row.usage or 0
+        value = row.value or Decimal("0")
+
+        if key not in sku_area_agg:
+            sku_area_agg[key] = {}
+        if area_id:
+            if area_id not in sku_area_agg[key]:
+                sku_area_agg[key][area_id] = [0, Decimal("0")]
+            sku_area_agg[key][area_id][0] += usage
+            sku_area_agg[key][area_id][1] += value
+
+        if key not in sku_dept_agg:
+            sku_dept_agg[key] = {}
+        if dept_id:
+            if dept_id not in sku_dept_agg[key]:
+                sku_dept_agg[key][dept_id] = [0, Decimal("0")]
+            sku_dept_agg[key][dept_id][0] += usage
+            sku_dept_agg[key][dept_id][1] += value
+
+        if key not in sku_dept_area_agg:
+            sku_dept_area_agg[key] = {}
+        if dept_id and area_id:
+            if dept_id not in sku_dept_area_agg[key]:
+                sku_dept_area_agg[key][dept_id] = {}
+            if area_id not in sku_dept_area_agg[key][dept_id]:
+                sku_dept_area_agg[key][dept_id][area_id] = [0, Decimal("0")]
+            sku_dept_area_agg[key][dept_id][area_id][0] += usage
+            sku_dept_area_agg[key][dept_id][area_id][1] += value
+
+    # Build area_list (for "按区域" tab)
+    area_list = []
+    for key, base in sku_base.items():
+        area_usage = {}
+        area_value = {}
+        sku_usage_total = 0
+        sku_value_total = Decimal("0")
+
+        area_data = sku_area_agg.get(key, {})
+        for area in areas:
+            a_data = area_data.get(area.id, [0, Decimal("0")])
+            area_usage[area.id] = a_data[0]
+            area_value[area.id] = a_data[1]
+            sku_usage_total += a_data[0]
+            sku_value_total += a_data[1]
+
+        sku_avg = (
+            sku_value_total / sku_usage_total
+            if sku_usage_total > 0
+            else base["average_price"]
+        )
+
+        area_list.append(
+            {
+                "itemsku": base["itemsku"],
+                "item": base["item"],
+                "area_usage": area_usage,
+                "area_value": area_value,
+                "total_usage": sku_usage_total,
+                "average_price": sku_avg,
+                "total_value": sku_value_total,
+            }
+        )
+
+    area_list.sort(
+        key=lambda x: (x["item"].name, x["itemsku"].brand, x["itemsku"].spec)
+    )
+
+    # Build dept_list (for "按部门" tab)
+    dept_list = []
+    for key, base in sku_base.items():
+        dept_usage = {}
+        dept_value = {}
+        sku_usage_total = 0
+        sku_value_total = Decimal("0")
+
+        dept_data = sku_dept_agg.get(key, {})
+        for dept in departments:
+            d_data = dept_data.get(dept.id, [0, Decimal("0")])
+            dept_usage[dept.id] = d_data[0]
+            dept_value[dept.id] = d_data[1]
+            sku_usage_total += d_data[0]
+            sku_value_total += d_data[1]
+
+        sku_avg = (
+            sku_value_total / sku_usage_total
+            if sku_usage_total > 0
+            else base["average_price"]
+        )
+
+        dept_list.append(
+            {
+                "itemsku": base["itemsku"],
+                "item": base["item"],
+                "dept_usage": dept_usage,
+                "dept_value": dept_value,
+                "total_usage": sku_usage_total,
+                "average_price": sku_avg,
+                "total_value": sku_value_total,
+            }
+        )
+
+    dept_list.sort(
+        key=lambda x: (x["item"].name, x["itemsku"].brand, x["itemsku"].spec)
+    )
+
+    # Build detailed_by_dept (for "详细" tab)
+    # dept_id -> list of item rows with per-area breakdown
+    detailed_by_dept = {}
+    for dept in departments:
+        dept_items = []
+        for key, base in sku_base.items():
+            area_usage = {}
+            area_value = {}
+            item_usage_total = 0
+            item_value_total = Decimal("0")
+
+            dept_area_data = sku_dept_area_agg.get(key, {}).get(dept.id, {})
+            for area in areas:
+                a_data = dept_area_data.get(area.id, [0, Decimal("0")])
+                area_usage[area.id] = a_data[0]
+                area_value[area.id] = a_data[1]
+                item_usage_total += a_data[0]
+                item_value_total += a_data[1]
+
+            if item_usage_total == 0:
+                continue
+
+            item_avg = (
+                item_value_total / item_usage_total
+                if item_usage_total > 0
+                else Decimal("0")
+            )
+
+            dept_items.append(
+                {
+                    "itemsku": base["itemsku"],
+                    "item": base["item"],
+                    "area_usage": area_usage,
+                    "area_value": area_value,
+                    "total_usage": item_usage_total,
+                    "average_price": item_avg,
+                    "total_value": item_value_total,
+                }
+            )
+
+        if dept_items:
+            dept_items.sort(
+                key=lambda x: (
+                    x["item"].name,
+                    x["itemsku"].brand,
+                    x["itemsku"].spec,
+                )
+            )
+            detailed_by_dept[dept.id] = dept_items
+
     return render_template(
         "statistics_usage.html.jinja",
         warehouses=warehouses,
@@ -567,6 +809,11 @@ def statistics_usage():
         total_quantity=total_quantity,
         total_value=total_value,
         tool_only=tool_only,
+        areas=areas,
+        departments=departments,
+        area_list=area_list,
+        dept_list=dept_list,
+        detailed_by_dept=detailed_by_dept,
     )
 
 

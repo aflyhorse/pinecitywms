@@ -233,9 +233,7 @@ def test_item_skus_api(auth_client):
         sku2 = ItemSKU(item_id=item.id, brand="Brand B", spec="Spec B")
         db.session.add_all([sku1, sku2])
         db.session.commit()
-        item_id = item.id
         sku1_id = sku1.id
-        sku2_id = sku2.id
 
     # Test fetching SKUs for existing item
     response = auth_client.get("/api/item/skus?name=SKU%20API%20Test%20Item")

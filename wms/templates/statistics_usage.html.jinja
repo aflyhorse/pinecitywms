@@ -1,6 +1,6 @@
 {% extends "base.html.jinja" %}
 {% block content %}
-<div class="container p-5 my-5">
+<div class="container-fluid p-3 my-3">
     <div class="card mb-4">
         <div class="card-header">
             <h3>用量统计</h3>
@@ -13,7 +13,7 @@
                         <option value="">全部仓库</option>
                         {% endif %}
                         {% for warehouse in warehouses %}
-                        <option value="{{ warehouse.id }}" {% if warehouse_id|int == warehouse.id %}selected{% endif %}>
+                        <option value="{{ warehouse.id }}" {% if warehouse_id|int==warehouse.id %}selected{% endif %}>
                             {{ warehouse.name }}
                         </option>
                         {% endfor %}
@@ -30,11 +30,12 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">物品名称</label>
-                    <input type="text" name="item_name" class="form-control" value="{{ item_name }}" list="item-names" autocomplete="off">
+                    <input type="text" name="item_name" class="form-control" value="{{ item_name }}" list="item-names"
+                        autocomplete="off">
                     <datalist id="item-names">
                         {% for name in item_names %}
                         <option value="{{ name }}">
-                        {% endfor %}
+                            {% endfor %}
                     </datalist>
                 </div>
                 <div class="col-md-2">
@@ -47,8 +48,15 @@
                 </div>
                 <div class="col-auto align-self-end mb-1">
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="tool_only" value="1" id="tool_only_usage" {% if tool_only %}checked{% endif %}>
+                        <input class="form-check-input" type="checkbox" name="tool_only" value="1" id="tool_only_usage"
+                            {% if tool_only %}checked{% endif %}>
                         <label class="form-check-label" for="tool_only_usage">仅查询工具</label>
+                    </div>
+                </div>
+                <div class="col-auto align-self-end mb-1">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="detail_mode_toggle">
+                        <label class="form-check-label" for="detail_mode_toggle">详细模式</label>
                     </div>
                 </div>
                 <div class="col-md-2">
@@ -69,6 +77,8 @@
             </form>
         </div>
         <div class="card-body">
+        <!-- Simple View (Default) -->
+        <div id="simple-view">
             <div class="table-responsive">
                 <table class="table table-hover table-sm table-bordered">
                     <thead class="table-light">
@@ -84,9 +94,13 @@
                     <tbody>
                         {% for itemsku, item, total_usage, average_price, total_value in usage_data %}
                         <tr>
-                            <td><a href="{{ url_for('records', item_id=item.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ item.name }}</a></td>
+                            <td><a href="{{ url_for('records', item_id=item.id, type='all') }}"
+                                    style="color: #0d6efd; text-decoration: none;">{{
+                                    item.name }}</a></td>
                             <td>{{ itemsku.brand }}</td>
-                            <td><a href="{{ url_for('records', sku_id=itemsku.id, type='all') }}" style="color: #0d6efd; text-decoration: none;">{{ itemsku.spec }}</a></td>
+                            <td><a href="{{ url_for('records', sku_id=itemsku.id, type='all') }}"
+                                    style="color: #0d6efd; text-decoration: none;">{{
+                                    itemsku.spec }}</a></td>
                             <td class="text-end">{{ total_usage }}</td>
                             <td class="text-end">¥{{ "%.2f"|format(average_price or 0) }}</td>
                             <td class="text-end">¥{{ "%.2f"|format(total_value or 0) }}</td>
@@ -104,12 +118,204 @@
                 </table>
             </div>
         </div>
+        <!-- Detailed View (Hidden by default) -->
+        <div id="detailed-view-container" style="display: none;">
+            <!-- Tab navigation -->
+            <ul class="nav nav-tabs mb-3" id="detailTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="area-tab" data-bs-toggle="tab" data-bs-target="#area-view"
+                        type="button" role="tab" aria-controls="area-view" aria-selected="true">按区域查看</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="department-tab" data-bs-toggle="tab"
+                        data-bs-target="#department-view" type="button" role="tab" aria-controls="department-view"
+                        aria-selected="false">按部门查看</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="detailed-tab" data-bs-toggle="tab" data-bs-target="#detailed-view"
+                        type="button" role="tab" aria-controls="detailed-view" aria-selected="false">详细视图</button>
+                </li>
+            </ul>
+
+            <!-- Tab content -->
+            <div class="tab-content" id="detailTabContent">
+                <!-- Area View Tab -->
+                <div class="tab-pane fade show active" id="area-view" role="tabpanel" aria-labelledby="area-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>物品</th>
+                                    <th>品牌</th>
+                                    <th>规格</th>
+                                    {% for area in areas %}
+                                    <th class="text-end">{{ area.name }}</th>
+                                    {% endfor %}
+                                    <th class="text-end">使用数量</th>
+                                    <th class="text-end">加权均价</th>
+                                    <th class="text-end">小计</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in area_list %}
+                                <tr>
+                                    <td><a href="{{ url_for('records', item_id=row.item.id, type='all') }}"
+                                            style="color: #0d6efd; text-decoration: none;">{{ row.item.name }}</a>
+                                    </td>
+                                    <td>{{ row.itemsku.brand }}</td>
+                                    <td><a href="{{ url_for('records', sku_id=row.itemsku.id, type='all') }}"
+                                            style="color: #0d6efd; text-decoration: none;">{{ row.itemsku.spec
+                                            }}</a></td>
+                                    {% for area in areas %}
+                                    <td class="text-end">{{ row.area_usage[area.id] if row.area_usage[area.id] > 0
+                                        else '' }}
+                                    </td>
+                                    {% endfor %}
+                                    <td class="text-end"><strong>{{ row.total_usage }}</strong></td>
+                                    <td class="text-end">¥{{ "%.2f"|format(row.average_price or 0) }}</td>
+                                    <td class="text-end">¥{{ "%.2f"|format(row.total_value or 0) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Department View Tab -->
+                <div class="tab-pane fade" id="department-view" role="tabpanel" aria-labelledby="department-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>物品</th>
+                                    <th>品牌</th>
+                                    <th>规格</th>
+                                    {% for dept in departments %}
+                                    <th class="text-end">{{ dept.name }}</th>
+                                    {% endfor %}
+                                    <th class="text-end">使用数量</th>
+                                    <th class="text-end">加权均价</th>
+                                    <th class="text-end">小计</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in dept_list %}
+                                <tr>
+                                    <td><a href="{{ url_for('records', item_id=row.item.id, type='all') }}"
+                                            style="color: #0d6efd; text-decoration: none;">{{ row.item.name }}</a>
+                                    </td>
+                                    <td>{{ row.itemsku.brand }}</td>
+                                    <td><a href="{{ url_for('records', sku_id=row.itemsku.id, type='all') }}"
+                                            style="color: #0d6efd; text-decoration: none;">{{ row.itemsku.spec
+                                            }}</a></td>
+                                    {% for dept in departments %}
+                                    <td class="text-end">{{ row.dept_usage[dept.id] if row.dept_usage[dept.id] > 0
+                                        else '' }}
+                                    </td>
+                                    {% endfor %}
+                                    <td class="text-end"><strong>{{ row.total_usage }}</strong></td>
+                                    <td class="text-end">¥{{ "%.2f"|format(row.average_price or 0) }}</td>
+                                    <td class="text-end">¥{{ "%.2f"|format(row.total_value or 0) }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Detailed View Tab -->
+                <div class="tab-pane fade" id="detailed-view" role="tabpanel" aria-labelledby="detailed-tab">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm table-bordered">
+                            {% set ns = namespace(grand_usage=0, grand_value=0) %}
+                            {% for dept in departments %}
+                            {% if dept.id in detailed_by_dept %}
+                            <!-- Department header -->
+                            <thead class="table-primary">
+                                <tr>
+                                    <th colspan="{{ areas|length + 6 }}">
+                                        部门: {{ dept.name }}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <thead class="table-light">
+                                <tr>
+                                    <th>物品</th>
+                                    <th>品牌</th>
+                                    <th>规格</th>
+                                    {% for area in areas %}
+                                    <th class="text-end">{{ area.name }}</th>
+                                    {% endfor %}
+                                    <th class="text-end">使用数量</th>
+                                    <th class="text-end">加权均价</th>
+                                    <th class="text-end">小计</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% set ns2 = namespace(dept_usage=0, dept_value=0) %}
+                                {% for row in detailed_by_dept[dept.id] %}
+                                <tr>
+                                    <td><a href="{{ url_for('records', item_id=row.item.id, type='all') }}"
+                                            style="color: #0d6efd; text-decoration: none;">{{ row.item.name }}</a>
+                                    </td>
+                                    <td>{{ row.itemsku.brand }}</td>
+                                    <td><a href="{{ url_for('records', sku_id=row.itemsku.id, type='all') }}"
+                                            style="color: #0d6efd; text-decoration: none;">{{ row.itemsku.spec
+                                            }}</a></td>
+                                    {% for area in areas %}
+                                    <td class="text-end">{{ row.area_usage[area.id] if row.area_usage[area.id] > 0
+                                        else '' }}
+                                    </td>
+                                    {% endfor %}
+                                    <td class="text-end">{{ row.total_usage }}</td>
+                                    <td class="text-end">¥{{ "%.2f"|format(row.average_price or 0) }}</td>
+                                    <td class="text-end">¥{{ "%.2f"|format(row.total_value or 0) }}</td>
+                                    {% set ns2.dept_usage = ns2.dept_usage + row.total_usage %}
+                                    {% set ns2.dept_value = ns2.dept_value + (row.total_value or 0) %}
+                                </tr>
+                                {% endfor %}
+                                <!-- Department total -->
+                                <tr class="table-secondary">
+                                    <td colspan="{{ areas|length + 3 }}"><strong>部门合计</strong></td>
+                                    <td class="text-end"><strong>{{ ns2.dept_usage }}</strong></td>
+                                    <td class="text-end">
+                                        {% if ns2.dept_usage > 0 %}
+                                        <strong>¥{{ "%.2f"|format(ns2.dept_value / ns2.dept_usage) }}</strong>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end"><strong>¥{{ "%.2f"|format(ns2.dept_value) }}</strong></td>
+                                </tr>
+                                {% set ns.grand_usage = ns.grand_usage + ns2.dept_usage %}
+                                {% set ns.grand_value = ns.grand_value + ns2.dept_value %}
+                            </tbody>
+                            {% endif %}
+                            {% endfor %}
+                            <!-- Grand total -->
+                            <tfoot class="table-dark">
+                                <tr>
+                                    <th colspan="{{ areas|length + 3 }}" class="text-end text-light">总计</th>
+                                    <th class="text-end text-light"><strong>{{ ns.grand_usage }}</strong></th>
+                                    <th class="text-end text-light">
+                                        {% if ns.grand_usage > 0 %}
+                                        <strong>¥{{ "%.2f"|format(ns.grand_value / ns.grand_usage) }}</strong>
+                                        {% endif %}
+                                    </th>
+                                    <th class="text-end text-light"><strong>¥{{ "%.2f"|format(ns.grand_value)
+                                            }}</strong></th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+</div>
 </div>
 {% endblock content %}
 
 {% block scripts %}
-    {{ super() }}
+{{ super() }}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Date utility functions
@@ -119,19 +325,19 @@
                 const day = String(date.getDate()).padStart(2, '0');
                 return `${year}-${month}-${day}`;
             }
-            
+
             function getFirstDayOfMonth(year, month) {
                 return new Date(year, month - 1, 1);
             }
-            
+
             function getLastDayOfMonth(year, month) {
                 return new Date(year, month, 0);
             }
-            
+
             function getFirstDayOfYear(year) {
                 return new Date(year, 0, 1);
             }
-            
+
             function getLastDayOfYear(year) {
                 return new Date(year, 11, 31);
             }
@@ -144,32 +350,52 @@
             const form = document.getElementById('statistics-form');
             const startDateInput = form.querySelector('input[name="start_date"]');
             const endDateInput = form.querySelector('input[name="end_date"]');
-            
-            // Button references
+
+            const detailToggle = document.getElementById('detail_mode_toggle');
+            const simpleView = document.getElementById('simple-view');
+            const detailedViewContainer = document.getElementById('detailed-view-container');
+
+            if (localStorage.getItem('usage_detail_mode') === 'true') {
+                detailToggle.checked = true;
+                simpleView.style.display = 'none';
+                detailedViewContainer.style.display = 'block';
+            }
+
+            detailToggle.addEventListener('change', function() {
+                localStorage.setItem('usage_detail_mode', this.checked);
+                if (this.checked) {
+                    simpleView.style.display = 'none';
+                    detailedViewContainer.style.display = 'block';
+                } else {
+                    simpleView.style.display = 'block';
+                    detailedViewContainer.style.display = 'none';
+                }
+            });
+
             const currentYearBtn = document.getElementById('current-year');
             const lastYearBtn = document.getElementById('last-year');
             const currentMonthBtn = document.getElementById('current-month');
             const lastMonthBtn = document.getElementById('last-month');
-            
+
             // Button event handlers
             currentYearBtn.addEventListener('click', function() {
                 startDateInput.value = formatDate(getFirstDayOfYear(currentYear));
                 endDateInput.value = formatDate(getLastDayOfYear(currentYear));
                 form.submit();
             });
-            
+
             lastYearBtn.addEventListener('click', function() {
                 startDateInput.value = formatDate(getFirstDayOfYear(currentYear - 1));
                 endDateInput.value = formatDate(getLastDayOfYear(currentYear - 1));
                 form.submit();
             });
-            
+
             currentMonthBtn.addEventListener('click', function() {
                 startDateInput.value = formatDate(getFirstDayOfMonth(currentYear, currentMonth));
                 endDateInput.value = formatDate(getLastDayOfMonth(currentYear, currentMonth));
                 form.submit();
             });
-            
+
             lastMonthBtn.addEventListener('click', function() {
                 // Calculate last month (accounting for year change)
                 let lastMonthYear = currentYear;
@@ -178,7 +404,6 @@
                     lastMonth = 12;
                     lastMonthYear--;
                 }
-                
                 startDateInput.value = formatDate(getFirstDayOfMonth(lastMonthYear, lastMonth));
                 endDateInput.value = formatDate(getLastDayOfMonth(lastMonthYear, lastMonth));
                 form.submit();
