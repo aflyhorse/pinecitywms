@@ -142,7 +142,9 @@
                 </thead>
                 <tbody>
                     {% for transaction in pagination.items %}
-                    <tr{% if transaction.receipt.revoked %} class="text-decoration-line-through" {% endif %}>
+                    <tr{% if transaction.receipt.revoked or (transaction.receipt.type.name=='STOCKOUT' and transaction.count> 0)
+                            or (transaction.receipt.type.name == 'STOCKIN' and transaction.count < 0) %}
+                            class="text-decoration-line-through" {% endif %}>
                         {% if record_type == 'all' %}
                         <td>
                             {% if transaction.receipt.type.name == 'STOCKIN' %}入库
@@ -204,6 +206,11 @@
                                     <a href="{{ url_for('receipt_detail', receipt_id=transaction.receipt.id) }}"
                                         data-bs-toggle="tooltip" data-bs-placement="right" title="撤销">
                                         {{ render_icon('x-circle') }}
+                                    </a>
+                                    {% elif transaction.receipt.revoked %}
+                                    <a href="{{ url_for('receipt_detail', receipt_id=transaction.receipt.id) }}"
+                                        data-bs-toggle="tooltip" data-bs-placement="right" title="撤销单据详情">
+                                        {{ render_icon('exclamation-circle', color='warning') }}
                                     </a>
                                     {% endif %}
                                 </div>
