@@ -35,12 +35,31 @@ def _tool_inventory_owner_id(warehouse: Warehouse) -> int | None:
     return warehouse.owner_id
 
 
+def _cell_text(value) -> str:
+    if pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
+def _manual_sku_id(value) -> int | None:
+    if pd.isna(value) or str(value).strip() == "":
+        return None
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("物料编号必须是整数") from exc
+    if not numeric_value.is_integer() or numeric_value <= 0:
+        raise ValueError("物料编号必须是正整数")
+    return int(numeric_value)
+
+
 @app.route("/batch_stockin", methods=["GET", "POST"])
 @login_required
 @admin_required
 def batch_stockin():
     """Batch stockin page"""
     form = BatchStockInForm()
+    manual_item_sku_id = app.config.get("MANUAL_ITEM_SKU_ID", False)
     warehouses = db.session.execute(db.select(Warehouse)).scalars().all()
     form.warehouse.choices = [(w.id, w.name) for w in warehouses]
 
@@ -85,6 +104,8 @@ def batch_stockin():
                 if col not in df.columns:
                     flash(f"文件缺少必要的列: {col}", "error")
                     return redirect(url_for("batch_stockin"))
+            if manual_item_sku_id and "物料编号" not in df.columns:
+                df["物料编号"] = None
 
             # Generate refcode for this batch operation
             refcode = f"IM-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
@@ -103,26 +124,61 @@ def batch_stockin():
             processed_count = 0
             tools_promoted_item_ids = set()
             for _, row in df.iterrows():
-                item_name = str(row["物品"]).strip()
-                brand = str(row["品牌"]).strip()
-                spec = str(row["规格"]).strip()
+                item_name = _cell_text(row["物品"])
+                brand = _cell_text(row["品牌"])
+                spec = _cell_text(row["规格"])
+                has_quantity = not pd.isna(row["数量"])
+                has_price = not pd.isna(row["单价"])
+                if manual_item_sku_id and (not has_quantity or not has_price):
+                    raise ValueError("数量和单价必须填写")
                 quantity = int(row["数量"]) if not pd.isna(row["数量"]) else 0
                 price = Decimal(row["单价"]) if not pd.isna(row["单价"]) else Decimal(0)
 
-                if (
-                    not item_name
-                    or not brand
-                    or not spec
-                    or item_name == "样例-LED长方形灯"
-                ):
+                if item_name == "样例-LED长方形灯":
                     continue  # Skip incomplete rows
 
+                if manual_item_sku_id:
+                    sku_id = _manual_sku_id(row["物料编号"])
+                    has_description = bool(item_name or brand or spec)
+                    has_complete_description = bool(item_name and brand and spec)
+                    if has_description and not has_complete_description:
+                        raise ValueError("物品、品牌、规格必须同时填写")
+                    if not sku_id and not has_complete_description:
+                        raise ValueError(
+                            "旧物件请填写物料编号，或完整填写物品、品牌、规格"
+                        )
+                else:
+                    sku_id = None
+                    if not item_name or not brand or not spec:
+                        continue  # Skip incomplete rows
+
                 # Find or create item
-                item = db.session.execute(
-                    db.select(Item).filter_by(name=item_name)
-                ).scalar_one_or_none()
+                item = None
+                item_sku = None
+                if manual_item_sku_id and sku_id:
+                    item_sku = db.session.get(ItemSKU, sku_id)
+                    if item_sku:
+                        item = item_sku.item
+                        if has_complete_description and (
+                            item.name != item_name
+                            or item_sku.brand != brand
+                            or item_sku.spec != spec
+                        ):
+                            raise ValueError(f"物料编号 {sku_id} 与物品信息不一致")
+
+                if item is None and item_name:
+                    item = db.session.execute(
+                        db.select(Item).filter_by(name=item_name)
+                    ).scalar_one_or_none()
 
                 if not item:
+                    if manual_item_sku_id:
+                        if not has_complete_description:
+                            raise ValueError(
+                                "不存在的物料编号必须同时填写物品、品牌、规格"
+                            )
+                        if not sku_id:
+                            raise ValueError("新物件必须填写物料编号")
                     item = Item(name=item_name, is_tool=tools_only)
                     db.session.add(item)
                     db.session.flush()  # To get the item ID
@@ -132,14 +188,20 @@ def batch_stockin():
                         tools_promoted_item_ids.add(item.id)
 
                 # Find or create item SKU
-                item_sku = db.session.execute(
-                    db.select(ItemSKU).filter_by(
-                        item_id=item.id, brand=brand, spec=spec
-                    )
-                ).scalar_one_or_none()
+                if item_sku is None and item_name:
+                    item_sku = db.session.execute(
+                        db.select(ItemSKU).filter_by(
+                            item_id=item.id, brand=brand, spec=spec
+                        )
+                    ).scalar_one_or_none()
 
                 if not item_sku:
-                    item_sku = ItemSKU(item_id=item.id, brand=brand, spec=spec)
+                    if manual_item_sku_id and not sku_id:
+                        raise ValueError("新规格必须填写物料编号")
+                    sku_kwargs = {"item_id": item.id, "brand": brand, "spec": spec}
+                    if manual_item_sku_id:
+                        sku_kwargs["id"] = sku_id
+                    item_sku = ItemSKU(**sku_kwargs)
                     db.session.add(item_sku)
                     db.session.flush()  # To get the SKU ID
 
@@ -192,7 +254,11 @@ def batch_stockin():
             current_app.logger.error(f"Batch stockin error: {e}")
             return redirect(url_for("batch_stockin"))
 
-    return render_template("batch_stockin.html.jinja", form=form)
+    return render_template(
+        "batch_stockin.html.jinja",
+        form=form,
+        manual_item_sku_id=manual_item_sku_id,
+    )
 
 
 @app.route("/batch_stockin/template")
@@ -201,10 +267,17 @@ def batch_stockin():
 def stockin_template():
     """Download stockin template"""
     # Create a DataFrame with the required columns
-    df = pd.DataFrame(columns=["物品", "品牌", "规格", "数量", "单价"])
+    manual_item_sku_id = app.config.get("MANUAL_ITEM_SKU_ID", False)
+    columns = ["物品", "品牌", "规格", "数量", "单价"]
+    if manual_item_sku_id:
+        columns.insert(0, "物料编号")
+    df = pd.DataFrame(columns=columns)
 
     # Add a sample row (optional)
-    df.loc[0] = ["样例-LED长方形灯", "飞利浦", "10*20cm，8W 6500K", 10, 9.99]
+    sample_row = ["样例-LED长方形灯", "飞利浦", "10*20cm，8W 6500K", 10, 9.99]
+    if manual_item_sku_id:
+        sample_row.insert(0, "")
+    df.loc[0] = sample_row
 
     # Create Excel in memory
     output = BytesIO()

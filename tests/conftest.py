@@ -1,4 +1,3 @@
-
 import os
 import pytest
 
@@ -12,6 +11,20 @@ import uuid  # noqa : E402
 
 # Register test routes for decorator coverage testing
 # These must be registered before the first request is handled
+
+
+@pytest.fixture(autouse=True)
+def reset_runtime_feature_flags():
+    flag_names = (
+        "AUTO_GENERATE_STOCKIN_REFCODE",
+        "MANUAL_RECEIPT_DATE",
+        "MANUAL_ITEM_SKU_ID",
+    )
+    original_values = {name: app.config.get(name) for name in flag_names}
+    for name in flag_names:
+        app.config[name] = False
+    yield
+    app.config.update(original_values)
 
 
 @pytest.fixture(scope="function")

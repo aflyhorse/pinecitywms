@@ -15,6 +15,12 @@ import pandas as pd
 from decimal import Decimal
 
 
+def _set_app_flag(flag_name, value):
+    original_value = app.config.get(flag_name)
+    app.config[flag_name] = value
+    return original_value
+
+
 def test_batch_stockin_get(client, auth_client, test_user):
     response = client.get("/batch_stockin")
     assert response.status_code == 200
@@ -261,6 +267,160 @@ def test_stockin_template_download(client, auth_client, test_user):
     assert all(col in excel_data.columns for col in required_columns)
     assert len(excel_data) == 1  # Should have one sample row
     assert excel_data.iloc[0]["物品"] == "样例-LED长方形灯"
+
+
+def test_stockin_template_includes_manual_sku_column_when_enabled(
+    client, auth_client, test_user
+):
+    original_manual_sku_id = _set_app_flag("MANUAL_ITEM_SKU_ID", True)
+    try:
+        response = auth_client.get("/batch_stockin/template")
+        assert response.status_code == 200
+        excel_data = pd.read_excel(io.BytesIO(response.data))
+        assert list(excel_data.columns) == [
+            "物料编号",
+            "物品",
+            "品牌",
+            "规格",
+            "数量",
+            "单价",
+        ]
+    finally:
+        app.config["MANUAL_ITEM_SKU_ID"] = original_manual_sku_id
+
+
+def test_batch_stockin_manual_sku_supports_code_or_description_for_existing_items(
+    auth_client, test_warehouse
+):
+    original_manual_sku_id = _set_app_flag("MANUAL_ITEM_SKU_ID", True)
+    try:
+        with app.app_context():
+            code_item = Item(name="按编码入库物品")
+            description_item = Item(name="按信息入库物品")
+            db.session.add_all([code_item, description_item])
+            db.session.flush()
+            code_sku = ItemSKU(item=code_item, brand="编码品牌", spec="编码规格")
+            description_sku = ItemSKU(
+                item=description_item, brand="信息品牌", spec="信息规格"
+            )
+            db.session.add_all([code_sku, description_sku])
+            db.session.commit()
+            code_sku_id = code_sku.id
+            description_sku_id = description_sku.id
+
+        df = pd.DataFrame(
+            {
+                "物料编号": [code_sku_id, None],
+                "物品": [None, "按信息入库物品"],
+                "品牌": [None, "信息品牌"],
+                "规格": [None, "信息规格"],
+                "数量": [2, 3],
+                "单价": [10.5, 20.5],
+            }
+        )
+        excel_file = io.BytesIO()
+        df.to_excel(excel_file, index=False)
+        excel_file.seek(0)
+
+        response = auth_client.post(
+            "/batch_stockin",
+            data={"warehouse": test_warehouse, "file": (excel_file, "manual.xlsx")},
+            follow_redirects=True,
+            content_type="multipart/form-data",
+        )
+        assert "成功处理 2 条记录" in response.get_data(as_text=True)
+
+        with app.app_context():
+            transactions = (
+                db.session.execute(
+                    db.select(Transaction).filter(
+                        Transaction.itemSKU_id.in_([code_sku_id, description_sku_id])
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            assert {transaction.itemSKU_id for transaction in transactions} == {
+                code_sku_id,
+                description_sku_id,
+            }
+    finally:
+        app.config["MANUAL_ITEM_SKU_ID"] = original_manual_sku_id
+
+
+def test_batch_stockin_manual_sku_requires_code_for_new_item(
+    auth_client, test_warehouse
+):
+    original_manual_sku_id = _set_app_flag("MANUAL_ITEM_SKU_ID", True)
+    try:
+        df = pd.DataFrame(
+            {
+                "物料编号": [None],
+                "物品": ["缺少编码的新物品"],
+                "品牌": ["品牌"],
+                "规格": ["规格"],
+                "数量": [1],
+                "单价": [10],
+            }
+        )
+        excel_file = io.BytesIO()
+        df.to_excel(excel_file, index=False)
+        excel_file.seek(0)
+
+        response = auth_client.post(
+            "/batch_stockin",
+            data={"warehouse": test_warehouse, "file": (excel_file, "missing.xlsx")},
+            follow_redirects=True,
+            content_type="multipart/form-data",
+        )
+        assert "新物件必须填写物料编号" in response.get_data(as_text=True)
+
+        with app.app_context():
+            assert (
+                db.session.execute(
+                    db.select(Item).filter_by(name="缺少编码的新物品")
+                ).scalar_one_or_none()
+                is None
+            )
+    finally:
+        app.config["MANUAL_ITEM_SKU_ID"] = original_manual_sku_id
+
+
+def test_batch_stockin_manual_sku_creates_complete_new_item(
+    auth_client, test_warehouse
+):
+    original_manual_sku_id = _set_app_flag("MANUAL_ITEM_SKU_ID", True)
+    try:
+        df = pd.DataFrame(
+            {
+                "物料编号": [24680],
+                "物品": ["完整新物品"],
+                "品牌": ["新品牌"],
+                "规格": ["新规格"],
+                "数量": [4],
+                "单价": [12.5],
+            }
+        )
+        excel_file = io.BytesIO()
+        df.to_excel(excel_file, index=False)
+        excel_file.seek(0)
+
+        response = auth_client.post(
+            "/batch_stockin",
+            data={"warehouse": test_warehouse, "file": (excel_file, "new.xlsx")},
+            follow_redirects=True,
+            content_type="multipart/form-data",
+        )
+        assert "成功处理 1 条记录" in response.get_data(as_text=True)
+
+        with app.app_context():
+            sku = db.session.get(ItemSKU, 24680)
+            assert sku is not None
+            assert sku.item.name == "完整新物品"
+            assert sku.brand == "新品牌"
+            assert sku.spec == "新规格"
+    finally:
+        app.config["MANUAL_ITEM_SKU_ID"] = original_manual_sku_id
 
 
 def test_batch_stockin_unauthorized(client):
