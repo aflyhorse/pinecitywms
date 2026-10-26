@@ -236,6 +236,18 @@ def stockin():
         if warehouse_exists:
             form.warehouse.data = session["last_warehouse_id"]
 
+    # Pre-fill the item when arriving from a link with item_sku_id
+    preselected_sku_id = request.args.get("item_sku_id", type=int)
+    if request.method == "GET" and preselected_sku_id:
+        preselected_sku = db.session.get(ItemSKU, preselected_sku_id)
+        if preselected_sku and not preselected_sku.disabled:
+            form.items[0].item_sku_id.data = preselected_sku.id
+            form.items[0].item_sku_display.data = preselected_sku.id
+            form.items[0].item_id.data = (
+                f"{preselected_sku.item.name} - "
+                f"{preselected_sku.brand} - {preselected_sku.spec}"
+            )
+
     if auto_generate_refcode and request.method == "POST" and not form.refcode.data:
         form.refcode.data = _generate_stockin_refcode()
 

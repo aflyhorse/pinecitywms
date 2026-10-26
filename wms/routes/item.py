@@ -1,5 +1,6 @@
 from flask import render_template, url_for, redirect, flash, request, jsonify
 from flask_login import login_required
+from markupsafe import Markup
 from sqlalchemy import select, distinct, desc
 import json
 from wms import app, db
@@ -148,7 +149,12 @@ def item_create():
         db.session.add(sku)
         db.session.commit()
 
-        flash(f"物品添加成功，物料编号：{sku.id}。", "success")
+        flash(
+            Markup(
+                '物品添加成功，物料编号：<a href="{}" class="alert-link">{}</a>。'
+            ).format(url_for("stockin", item_sku_id=sku.id), f"{sku.id:04d}"),
+            "success",
+        )
         return redirect(url_for("item"))
 
     return render_template(

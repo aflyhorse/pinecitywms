@@ -48,6 +48,7 @@
 <script>
     (function () {
         const itemNames = {{ item_names_json|safe }};
+        const stockinUrl = {{ url_for('stockin')|tojson }};
         const itemNameInput = document.getElementById('item_name');
         const skuReference = document.getElementById('sku-reference');
         const skuReferenceBody = document.getElementById('sku-reference-body');
@@ -65,7 +66,8 @@
             }
             skuReferenceBody.innerHTML = skus.map(function (sku) {
                 return '<tr>' +
-                    '<td>' + String(sku.id).padStart(4, '0') + '</td>' +
+                    '<td><a href="' + stockinUrl + '?item_sku_id=' + sku.id + '">' +
+                    String(sku.id).padStart(4, '0') + '</a></td>' +
                     '<td>' + sku.brand + '</td>' +
                     '<td>' + sku.spec + '</td>' +
                     '</tr>';
