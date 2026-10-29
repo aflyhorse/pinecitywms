@@ -739,3 +739,126 @@ def test_batch_takestock_new_items(client, auth_client, test_user, test_warehous
     ).scalar_one_or_none()
     assert wis is not None
     assert wis.count == 5
+
+
+def test_batch_stockin_blank_brand_spec_use_defaults(auth_client, test_warehouse):
+    df = pd.DataFrame(
+        {
+            "物品": ["留空默认值物品"],
+            "品牌": [None],
+            "规格": [None],
+            "数量": [5],
+            "单价": [1.5],
+        }
+    )
+    excel_file = io.BytesIO()
+    df.to_excel(excel_file, index=False)
+    excel_file.seek(0)
+
+    response = auth_client.post(
+        "/batch_stockin",
+        data={"warehouse": test_warehouse, "file": (excel_file, "blank.xlsx")},
+        follow_redirects=True,
+        content_type="multipart/form-data",
+    )
+    assert "成功处理 1 条记录" in response.get_data(as_text=True)
+
+    with app.app_context():
+        item = db.session.execute(
+            db.select(Item).filter_by(name="留空默认值物品")
+        ).scalar_one()
+        sku = db.session.execute(
+            db.select(ItemSKU).filter_by(item_id=item.id)
+        ).scalar_one()
+        assert sku.brand == "无"
+        assert sku.spec == "通用"
+
+
+def test_batch_stockin_manual_sku_blank_brand_spec_use_defaults(
+    auth_client, test_warehouse
+):
+    original_manual_sku_id = _set_app_flag("MANUAL_ITEM_SKU_ID", True)
+    try:
+        df = pd.DataFrame(
+            {
+                "物料编号": [24681],
+                "物品": ["手动留空物品"],
+                "品牌": [None],
+                "规格": [None],
+                "数量": [3],
+                "单价": [2.5],
+            }
+        )
+        excel_file = io.BytesIO()
+        df.to_excel(excel_file, index=False)
+        excel_file.seek(0)
+
+        response = auth_client.post(
+            "/batch_stockin",
+            data={"warehouse": test_warehouse, "file": (excel_file, "blank.xlsx")},
+            follow_redirects=True,
+            content_type="multipart/form-data",
+        )
+        assert "成功处理 1 条记录" in response.get_data(as_text=True)
+
+        with app.app_context():
+            sku = db.session.get(ItemSKU, 24681)
+            assert sku is not None
+            assert sku.item.name == "手动留空物品"
+            assert sku.brand == "无"
+            assert sku.spec == "通用"
+    finally:
+        app.config["MANUAL_ITEM_SKU_ID"] = original_manual_sku_id
+
+
+def test_batch_takestock_blank_brand_spec_match_defaults(auth_client, test_warehouse):
+    with app.app_context():
+        item = Item(name="盘库留空物品")
+        db.session.add(item)
+        db.session.flush()
+        sku = ItemSKU(item_id=item.id, brand="无", spec="通用")
+        db.session.add(sku)
+        db.session.flush()
+        sku_id = sku.id
+        wis = WarehouseItemSKU(warehouse_id=test_warehouse, itemSKU_id=sku.id, count=10)
+        db.session.add(wis)
+        db.session.commit()
+
+    df = pd.DataFrame(
+        {
+            "物品": ["盘库留空物品"],
+            "品牌": [None],
+            "规格": [None],
+            "系统库存": [10],
+            "实际库存": [7],
+        }
+    )
+    excel_file = io.BytesIO()
+    df.to_excel(excel_file, index=False)
+    excel_file.seek(0)
+
+    response = auth_client.post(
+        "/batch_takestock",
+        data={
+            "warehouse": test_warehouse,
+            "note": "留空默认值盘库",
+            "file": (excel_file, "blank.xlsx"),
+        },
+        follow_redirects=True,
+        content_type="multipart/form-data",
+    )
+    assert "成功处理 1 条记录" in response.get_data(as_text=True)
+
+    with app.app_context():
+        # Should match the existing brand="无"/spec="通用" SKU instead of creating one
+        item = db.session.execute(
+            db.select(Item).filter_by(name="盘库留空物品")
+        ).scalar_one()
+        skus = db.session.execute(
+            db.select(ItemSKU).filter_by(item_id=item.id)
+        ).scalars().all()
+        assert len(skus) == 1
+        transaction = db.session.execute(
+            db.select(Transaction).filter_by(itemSKU_id=sku_id)
+        ).scalar_one()
+        assert transaction.count == -3

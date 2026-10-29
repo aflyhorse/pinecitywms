@@ -125,8 +125,11 @@ def batch_stockin():
             tools_promoted_item_ids = set()
             for _, row in df.iterrows():
                 item_name = _cell_text(row["物品"])
-                brand = _cell_text(row["品牌"])
-                spec = _cell_text(row["规格"])
+                raw_brand = _cell_text(row["品牌"])
+                raw_spec = _cell_text(row["规格"])
+                # Default brand/spec when left blank
+                brand = raw_brand or "无"
+                spec = raw_spec or "通用"
                 has_quantity = not pd.isna(row["数量"])
                 has_price = not pd.isna(row["单价"])
                 if manual_item_sku_id and (not has_quantity or not has_price):
@@ -139,17 +142,14 @@ def batch_stockin():
 
                 if manual_item_sku_id:
                     sku_id = _manual_sku_id(row["物料编号"])
-                    has_description = bool(item_name or brand or spec)
-                    has_complete_description = bool(item_name and brand and spec)
-                    if has_description and not has_complete_description:
-                        raise ValueError("物品、品牌、规格必须同时填写")
-                    if not sku_id and not has_complete_description:
-                        raise ValueError(
-                            "旧物件请填写物料编号，或完整填写物品、品牌、规格"
-                        )
+                    has_description = bool(item_name or raw_brand or raw_spec)
+                    if has_description and not item_name:
+                        raise ValueError("必须填写物品名称（品牌、规格可留空）")
+                    if not sku_id and not item_name:
+                        raise ValueError("旧物件请填写物料编号，或填写物品名称")
                 else:
                     sku_id = None
-                    if not item_name or not brand or not spec:
+                    if not item_name:
                         continue  # Skip incomplete rows
 
                 # Find or create item
@@ -159,7 +159,7 @@ def batch_stockin():
                     item_sku = db.session.get(ItemSKU, sku_id)
                     if item_sku:
                         item = item_sku.item
-                        if has_complete_description and (
+                        if item_name and (
                             item.name != item_name
                             or item_sku.brand != brand
                             or item_sku.spec != spec
@@ -173,10 +173,8 @@ def batch_stockin():
 
                 if not item:
                     if manual_item_sku_id:
-                        if not has_complete_description:
-                            raise ValueError(
-                                "不存在的物料编号必须同时填写物品、品牌、规格"
-                            )
+                        if not item_name:
+                            raise ValueError("不存在的物料编号必须填写物品名称")
                         if not sku_id:
                             raise ValueError("新物件必须填写物料编号")
                     item = Item(name=item_name, is_tool=tools_only)
@@ -372,14 +370,15 @@ def batch_takestock():
                 # Process each row
                 processed_count = 0
                 for _, row in df.iterrows():
-                    item_name = str(row["物品"]).strip()
-                    brand = str(row["品牌"]).strip()
-                    spec = str(row["规格"]).strip()
+                    item_name = _cell_text(row["物品"])
+                    # Default brand/spec when left blank
+                    brand = _cell_text(row["品牌"]) or "无"
+                    spec = _cell_text(row["规格"]) or "通用"
                     actual_count = (
                         int(row["实际库存"]) if not pd.isna(row["实际库存"]) else 0
                     )
 
-                    if not item_name or not brand or not spec:
+                    if not item_name:
                         continue  # Skip incomplete rows  # pragma: no cover
 
                     # Find item and SKU first
